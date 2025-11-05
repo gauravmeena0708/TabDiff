@@ -66,12 +66,12 @@ _MODELS = {
             'class': XGBClassifier, # 36
             'kwargs': {
                  'n_estimators': [10, 50, 100],
-                 'min_child_weight': [1, 10], 
+                 'min_child_weight': [1, 10],
                  'max_depth': [5, 10, 20],
                  'gamma': [0.0, 1.0],
                  'objective': ['binary:logistic'],
                  'nthread': [-1],
-                 'tree_method': ['gpu_hist']
+                 'tree_method': ['hist']
             },
         }
 
@@ -108,12 +108,12 @@ _MODELS = {
             'class': XGBClassifier, # 36
             'kwargs': {
                  'n_estimators': [10, 50, 100],
-                 'min_child_weight': [1, 10], 
+                 'min_child_weight': [1, 10],
                  'max_depth': [5, 10, 20],
                  'gamma': [0.0, 1.0],
                  'objective': ['binary:logistic'],
                  'nthread': [-1],
-                 'tree_method': ['gpu_hist']
+                 'tree_method': ['hist']
             }
         }
 
@@ -131,15 +131,15 @@ _MODELS = {
         #    }
         #},
         {
-            'class': XGBRegressor, # 36 
+            'class': XGBRegressor, # 36
             'kwargs': {
                  'n_estimators': [10, 50, 100],
-                 'min_child_weight': [1, 10], 
+                 'min_child_weight': [1, 10],
                  'max_depth': [5, 10, 20],
                  'gamma': [0.0, 1.0],
-                 'objective': ['reg:linear'],
+                 'objective': ['reg:squarederror'],
                  'nthread': [-1],
-                 'tree_method': ['gpu_hist']
+                 'tree_method': ['hist']
             }
         },
         # {
@@ -515,8 +515,8 @@ def _evaluate_binary_classification(train, test, info, val=None):
 
             try:
                 model.fit(x_trains, y_trains)
-            except ValueError:
-                pass
+            except ValueError as e:
+                print(e)
 
             if len(unique_labels) == 1:
                 pred = [unique_labels[0]] * len(x_valid)

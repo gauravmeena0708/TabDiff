@@ -42,7 +42,7 @@ k_init=-6.0
 k_offset=1.0
 
 [train.main]
-steps = 8000
+steps = 4000
 lr = 0.001
 weight_decay = 0
 ema_decay = 0.997
@@ -57,3 +57,4 @@ d_lambda = 1.0
 
 [sample]
 batch_size = 10000
+

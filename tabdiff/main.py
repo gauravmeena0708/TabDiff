@@ -64,9 +64,9 @@ def main(args):
         ckpt_path = args.ckpt_path
         if ckpt_path is None:
             ckpt_parent_path = f"{curr_dir}/ckpt/{dataname}/{exp_name}"
-            ckpt_path_arr = glob.glob(f"{ckpt_parent_path}/best_ema_model*")
+            ckpt_path_arr = glob.glob(f"{ckpt_parent_path}/*.pt")
             assert ckpt_path_arr, f"Cannot not infer ckpt_path from {ckpt_parent_path}, please make sure that you first train a model before testing!"
-            ckpt_path = ckpt_path_arr[0]
+            ckpt_path = ckpt_path_arr[-1]
         config_path = os.path.join(os.path.dirname(ckpt_path), 'config.pkl')
         if os.path.exists(config_path):
             with open(config_path, 'rb') as f:
@@ -163,9 +163,9 @@ def main(args):
         main_model_path = args.ckpt_path
         if main_model_path is None:
             main_model_parent_path = f"{curr_dir}/ckpt/{dataname}/{exp_name.replace('_y_only', '')}"
-            main_model_path_arr = glob.glob(f"{main_model_parent_path}/best_ema_model*")
+            main_model_path_arr = glob.glob(f"{main_model_parent_path}/*.pt")
             assert main_model_path_arr, f"Cannot not infer the main model's ckpt_path from {main_model_parent_path}, please make sure that you first train a main model before training the y_only model!"
-            main_model_path = main_model_path_arr[0]
+            main_model_path = main_model_path_arr[-1]
         main_model_configs = pickle.load(open(os.path.join(os.path.dirname(main_model_path), 'config.pkl'), 'rb'))
         if main_model_configs['diffusion_params']['scheduler'] == "power_mean_per_column": # if learnable schedule is enabled in the main model, we need to infer noise params of the target column from the main model ckpt and train the y_only model with those params
             from tabdiff.models.noise_schedule import PowerMeanNoise_PerColumn, LogLinearNoise_PerColumn
@@ -194,9 +194,9 @@ def main(args):
         y_only_model_path = args.y_only_model_path
         if y_only_model_path is None:
             y_only_model_parent_path = f"{curr_dir}/ckpt/{dataname}/{exp_name}_y_only"
-            y_only_model_path_arr = glob.glob(f"{y_only_model_parent_path}/best_ema_model*")
+            y_only_model_path_arr = glob.glob(f"{y_only_model_parent_path}/*.pt")
             assert y_only_model_path_arr, f"Cannot not infer y_only model's ckpt_path from {y_only_model_parent_path}, please make sure that you first train a y_only model before testing imputation!"
-            y_only_model_path = y_only_model_path_arr[0]
+            y_only_model_path = y_only_model_path_arr[-1]
         y_only_model_config_path = os.path.join(os.path.dirname(y_only_model_path), 'config.pkl')
         with open(y_only_model_config_path, 'rb') as f:
                 y_only_model_config = pickle.load(f)

@@ -224,7 +224,7 @@ class Trainer:
             update_ema(self.ema_cat_schedule.parameters(), self.diffusion.cat_schedule.parameters(), rate=self.ema_decay)
 
             # Save ckpt base on the best training loss
-            if total_loss < best_loss and self.curr_epoch > 4000:
+            if total_loss < best_loss:
                 best_loss = total_loss
                 to_remove = glob.glob(os.path.join(self.model_save_path, f"best_model_*"))
                 if to_remove:
@@ -251,7 +251,7 @@ class Trainer:
             }
             
             # Save the best ema ckpt
-            if ema_total_loss < best_ema_loss and self.curr_epoch > 4000:
+            if ema_total_loss < best_ema_loss:
                 best_ema_loss = ema_total_loss
                 to_remove = glob.glob(os.path.join(self.model_save_path, f"best_ema_model_*"))
                 if to_remove:
@@ -392,8 +392,8 @@ class Trainer:
         
         print_with_bar(f"The AVG over {num_runs} runs are: \n{avg_std}")
         
-    def test(self):    
-        out_metrics, _, _ = self.evaluate_generation(save_metric_details=True, plot_density=True)
+    def test(self):
+        out_metrics, _, _ = self.evaluate_generation(save_metric_details=True, plot_density=False)
         print_with_bar(f"Results of the test are: \n{out_metrics}")
         self.logger.log(out_metrics)
         print(out_metrics)

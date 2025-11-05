@@ -517,19 +517,43 @@ def process_data(name):
 
 
     
+    # Encode categorical columns
+    cat_encoders = {}
+    X_cat_train_encoded = np.empty((train_df.shape[0], len(cat_columns)), dtype=int)
+    X_cat_test_encoded = np.empty((test_df.shape[0], len(cat_columns)), dtype=int)
+    X_cat_val_encoded = np.empty((val_df.shape[0], len(cat_columns)), dtype=int)
+
+    for i, col in enumerate(cat_columns):
+        encoder = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+        # Fit on training data and transform all splits
+        X_cat_train_encoded[:, i] = encoder.fit_transform(train_df[[col]]).flatten()
+        
+        if not test_df.empty:
+            X_cat_test_encoded[:, i] = encoder.transform(test_df[[col]]).flatten()
+        else:
+            X_cat_test_encoded = np.array([])
+
+        if not val_df.empty:
+            X_cat_val_encoded[:, i] = encoder.transform(val_df[[col]]).flatten()
+        else:
+            X_cat_val_encoded = np.array([])
+
+        cat_encoders[col] = encoder.categories_[0].tolist()
+
     X_num_train = train_df[num_columns].to_numpy().astype(np.float32)
-    X_cat_train = train_df[cat_columns].to_numpy()
+    X_cat_train = X_cat_train_encoded
     y_train = train_df[target_columns].to_numpy()
 
 
     X_num_test = test_df[num_columns].to_numpy().astype(np.float32)
-    X_cat_test = test_df[cat_columns].to_numpy()
+    X_cat_test = X_cat_test_encoded
     y_test = test_df[target_columns].to_numpy()
 
     X_num_val = val_df[num_columns].to_numpy().astype(np.float32)
-    X_cat_val = val_df[cat_columns].to_numpy()
+    X_cat_val = X_cat_val_encoded
     y_val = val_df[target_columns].to_numpy()
  
+    info['cat_encoders'] = cat_encoders
     save_dir = f'data/{name}'
     np.save(f'{save_dir}/X_num_train.npy', X_num_train)
     np.save(f'{save_dir}/X_cat_train.npy', X_cat_train)

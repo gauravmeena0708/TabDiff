@@ -1,0 +1,91 @@
+Train Mode is Enabled
+NEW training is started
+No NaNs in numerical features, skipping
+No NaNs in numerical features, skipping
+adult does not have its validation set. During MLE evaluation, a validation set will be splitted from the training set!
+The number of parameters =  10623004
+The config of the current run is : 
+ {
+    "data": {
+        "dequant_dist": "none",
+        "int_dequant_factor": 0
+    },
+    "unimodmlp_params": {
+        "num_layers": 2,
+        "d_token": 4,
+        "n_head": 1,
+        "factor": 32,
+        "bias": true,
+        "dim_t": 1024,
+        "use_mlp": true,
+        "d_numerical": 6,
+        "categories": [
+            3,
+            10,
+            17,
+            8,
+            16,
+            7,
+            6,
+            3,
+            43
+        ]
+    },
+    "diffusion_params": {
+        "num_timesteps": 50,
+        "scheduler": "power_mean_per_column",
+        "cat_scheduler": "log_linear_per_column",
+        "noise_dist": "uniform_t",
+        "sampler_params": {
+            "stochastic_sampler": true,
+            "second_order_correction": true
+        },
+        "edm_params": {
+            "precond": true,
+            "sigma_data": 1.0,
+            "net_conditioning": "sigma"
+        },
+        "noise_dist_params": {
+            "P_mean": -1.2,
+            "P_std": 1.2
+        },
+        "noise_schedule_params": {
+            "sigma_min": 0.002,
+            "sigma_max": 80,
+            "rho": 7,
+            "eps_max": 0.001,
+            "eps_min": 1e-05,
+            "rho_init": 7.0,
+            "rho_offset": 5.0,
+            "k_init": -6.0,
+            "k_offset": 1.0
+        }
+    },
+    "train": {
+        "main": {
+            "steps": 2,
+            "lr": 0.001,
+            "weight_decay": 0,
+            "ema_decay": 0.997,
+            "batch_size": 4096,
+            "check_val_every": 2000,
+            "lr_scheduler": "reduce_lr_on_plateau",
+            "factor": 0.9,
+            "reduce_lr_patience": 50,
+            "closs_weight_schedule": "anneal",
+            "c_lambda": 1.0,
+            "d_lambda": 1.0
+        }
+    },
+    "sample": {
+        "batch_size": 10000
+    },
+    "model_save_path": "/mnt/c/Users/gaura/Documents/GitHub/TabDiff/tabdiff/ckpt/adult/learnable_schedule",
+    "result_save_path": "/mnt/c/Users/gaura/Documents/GitHub/TabDiff/tabdiff/result/adult/learnable_schedule",
+    "deterministic": false
+}
+==============Starting Trainin Loop, total number of epoch = 2==============
+  0%|          | 0/8 [00:00<?, ?it/s]Epoch 1/2:   0%|          | 0/8 [00:00<?, ?it/s]Epoch 1/2:   0%|          | 0/8 [00:02<?, ?it/s, lr=0.001, DLoss=2.3, CLoss=5.32, TotalLoss=7.62, closs_weight=1, dloss_weight=1]Epoch 1/2:  12%|█▎        | 1/8 [00:02<00:18,  2.69s/it, lr=0.001, DLoss=2.3, CLoss=5.32, TotalLoss=7.62, closs_weight=1, dloss_weight=1]Epoch 1/2:  12%|█▎        | 1/8 [00:04<00:18,  2.69s/it, lr=0.001, DLoss=2.21, CLoss=4.94, TotalLoss=7.15, closs_weight=1, dloss_weight=1]Epoch 1/2:  25%|██▌       | 2/8 [00:04<00:13,  2.17s/it, lr=0.001, DLoss=2.21, CLoss=4.94, TotalLoss=7.15, closs_weight=1, dloss_weight=1]Epoch 1/2:  25%|██▌       | 2/8 [00:06<00:13,  2.17s/it, lr=0.001, DLoss=2.17, CLoss=4.41, TotalLoss=6.58, closs_weight=1, dloss_weight=1]Epoch 1/2:  38%|███▊      | 3/8 [00:06<00:10,  2.06s/it, lr=0.001, DLoss=2.17, CLoss=4.41, TotalLoss=6.58, closs_weight=1, dloss_weight=1]Epoch 1/2:  38%|███▊      | 3/8 [00:07<00:10,  2.06s/it, lr=0.001, DLoss=2.13, CLoss=4.2, TotalLoss=6.33, closs_weight=1, dloss_weight=1] Epoch 1/2:  50%|█████     | 4/8 [00:07<00:07,  1.86s/it, lr=0.001, DLoss=2.13, CLoss=4.2, TotalLoss=6.33, closs_weight=1, dloss_weight=1]Epoch 1/2:  50%|█████     | 4/8 [00:09<00:07,  1.86s/it, lr=0.001, DLoss=2.08, CLoss=3.89, TotalLoss=5.97, closs_weight=1, dloss_weight=1]Epoch 1/2:  62%|██████▎   | 5/8 [00:09<00:05,  1.84s/it, lr=0.001, DLoss=2.08, CLoss=3.89, TotalLoss=5.97, closs_weight=1, dloss_weight=1]Epoch 1/2:  62%|██████▎   | 5/8 [00:11<00:05,  1.84s/it, lr=0.001, DLoss=2.05, CLoss=3.88, TotalLoss=5.93, closs_weight=1, dloss_weight=1]Epoch 1/2:  75%|███████▌  | 6/8 [00:11<00:03,  1.74s/it, lr=0.001, DLoss=2.05, CLoss=3.88, TotalLoss=5.93, closs_weight=1, dloss_weight=1]Epoch 1/2:  75%|███████▌  | 6/8 [00:12<00:03,  1.74s/it, lr=0.001, DLoss=2.05, CLoss=3.76, TotalLoss=5.81, closs_weight=1, dloss_weight=1]Epoch 1/2:  88%|████████▊ | 7/8 [00:12<00:01,  1.67s/it, lr=0.001, DLoss=2.05, CLoss=3.76, TotalLoss=5.81, closs_weight=1, dloss_weight=1]Epoch 1/2:  88%|████████▊ | 7/8 [00:14<00:01,  1.67s/it, lr=0.001, DLoss=2.05, CLoss=3.68, TotalLoss=5.73, closs_weight=1, dloss_weight=1]Epoch 1/2: 100%|██████████| 8/8 [00:14<00:00,  1.59s/it, lr=0.001, DLoss=2.05, CLoss=3.68, TotalLoss=5.73, closs_weight=1, dloss_weight=1]Epoch 1/2: 100%|██████████| 8/8 [00:14<00:00,  1.79s/it, lr=0.001, DLoss=2.05, CLoss=3.68, TotalLoss=5.73, closs_weight=1, dloss_weight=1]
+  0%|          | 0/8 [00:00<?, ?it/s]Epoch 2/2:   0%|          | 0/8 [00:00<?, ?it/s]Epoch 2/2:   0%|          | 0/8 [00:02<?, ?it/s, lr=0.001, DLoss=1.91, CLoss=2.82, TotalLoss=4.73, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  12%|█▎        | 1/8 [00:02<00:20,  2.90s/it, lr=0.001, DLoss=1.91, CLoss=2.82, TotalLoss=4.73, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  12%|█▎        | 1/8 [00:04<00:20,  2.90s/it, lr=0.001, DLoss=1.88, CLoss=2.86, TotalLoss=4.74, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  25%|██▌       | 2/8 [00:04<00:13,  2.22s/it, lr=0.001, DLoss=1.88, CLoss=2.86, TotalLoss=4.74, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  25%|██▌       | 2/8 [00:06<00:13,  2.22s/it, lr=0.001, DLoss=1.86, CLoss=2.79, TotalLoss=4.65, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  38%|███▊      | 3/8 [00:06<00:09,  1.86s/it, lr=0.001, DLoss=1.86, CLoss=2.79, TotalLoss=4.65, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  38%|███▊      | 3/8 [00:08<00:09,  1.86s/it, lr=0.001, DLoss=1.84, CLoss=2.7, TotalLoss=4.54, closs_weight=0.5, dloss_weight=1] Epoch 2/2:  50%|█████     | 4/8 [00:08<00:07,  1.92s/it, lr=0.001, DLoss=1.84, CLoss=2.7, TotalLoss=4.54, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  50%|█████     | 4/8 [00:09<00:07,  1.92s/it, lr=0.001, DLoss=1.84, CLoss=2.53, TotalLoss=4.37, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  62%|██████▎   | 5/8 [00:09<00:05,  1.83s/it, lr=0.001, DLoss=1.84, CLoss=2.53, TotalLoss=4.37, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  62%|██████▎   | 5/8 [00:11<00:05,  1.83s/it, lr=0.001, DLoss=1.84, CLoss=2.4, TotalLoss=4.23, closs_weight=0.5, dloss_weight=1] Epoch 2/2:  75%|███████▌  | 6/8 [00:11<00:03,  1.74s/it, lr=0.001, DLoss=1.84, CLoss=2.4, TotalLoss=4.23, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  75%|███████▌  | 6/8 [00:12<00:03,  1.74s/it, lr=0.001, DLoss=1.84, CLoss=2.3, TotalLoss=4.14, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  88%|████████▊ | 7/8 [00:12<00:01,  1.66s/it, lr=0.001, DLoss=1.84, CLoss=2.3, TotalLoss=4.14, closs_weight=0.5, dloss_weight=1]Epoch 2/2:  88%|████████▊ | 7/8 [00:14<00:01,  1.66s/it, lr=0.001, DLoss=1.83, CLoss=2.24, TotalLoss=4.07, closs_weight=0.5, dloss_weight=1]Epoch 2/2: 100%|██████████| 8/8 [00:14<00:00,  1.59s/it, lr=0.001, DLoss=1.83, CLoss=2.24, TotalLoss=4.07, closs_weight=0.5, dloss_weight=1]Epoch 2/2: 100%|██████████| 8/8 [00:14<00:00,  1.79s/it, lr=0.001, DLoss=1.83, CLoss=2.24, TotalLoss=4.07, closs_weight=0.5, dloss_weight=1]
+==============Ending Trainnig Loop, totoal training time = 41.13481640815735==============
+

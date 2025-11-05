@@ -1,0 +1,17 @@
+ # 1. Set up environment
+  conda env create -f tabdiff.yaml
+  conda activate tabdiff
+
+  For Existing Datasets (e.g., Adult, Diabetes, etc.)
+
+  # 1. Download and process the dataset
+  python download_dataset.py
+  python process_dataset.py
+
+  # 2. Train the model
+  python main.py --dataname adult --mode train --no_wandb
+
+  # 3. Generate synthetic table
+  python main.py --dataname adult --mode test --no_wandb
+
+  Output location: tabdiff/result/adult/<exp_name>/<epoch>/samples.csv
