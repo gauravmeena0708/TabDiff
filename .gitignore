@@ -13,3 +13,6 @@ debug/
 tabdiff/result/
 
 **/ckpt/*
+.claude/*
+conditional_samples/*
+*.log

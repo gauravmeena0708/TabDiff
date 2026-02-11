@@ -395,19 +395,7 @@ def process_data(name):
         # if testing data is given
         test_path = info['test_path']
         
-        if "adult" in name:     # BUG: currently data saved at adult's test_path cannot be directly loaded. Consider integrate the following code to a preprocesing function for adult
-            with open(test_path, 'r') as f:
-                lines = f.readlines()[1:]
-                test_save_path = f'data/{name}/test.data'
-                if not os.path.exists(test_save_path):
-                    with open(test_save_path, 'a') as f1:     
-                        for line in lines:
-                            save_line = line.strip('\n').strip('.')
-                            f1.write(f'{save_line}\n')
-
-            test_df = pd.read_csv(test_save_path, header = None)
-        else:
-            test_df = pd.read_csv(test_path, header = info['header'])
+        test_df = pd.read_csv(test_path, header = info['header'])
             
         if has_val:     # currently you cannot have a val path without a test path
             val_path = info['val_path']
@@ -662,7 +650,8 @@ if __name__ == "__main__":
                 'shoppers_dcr',
                 'beijing_dcr',
                 'news_dcr', 
-                'diabetes_dcr'
+                'diabetes_dcr',
+                'default_anonymized'
             ]:    
             process_data(name)
 

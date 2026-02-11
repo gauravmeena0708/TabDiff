@@ -290,6 +290,26 @@ if __name__ == '__main__':
 
     parser.add_argument('--dataname', type=str, default='adult', help='Name of dataset.')
     parser.add_argument('--gpu', type=int, default=0, help='GPU index.')
+    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'], help='Mode: train or test.')
+    parser.add_argument('--exp_name', type=str, default=None, help='Experiment name.')
+    parser.add_argument('--non_learnable_schedule', action='store_true', help='Use non-learnable schedule.')
+    parser.add_argument('--y_only', action='store_true', help='Y only mode.')
+    parser.add_argument('--num_samples_to_generate', type=int, default=None, help='Number of samples to generate in test mode.')
+    parser.add_argument('--ckpt_path', type=str, default=None, help='Checkpoint path for testing.')
+    parser.add_argument('--impute', action='store_true', help='Enable imputation mode.')
+    parser.add_argument('--mask_path', type=str, default=None, help='Path to mask file for imputation.')
+    parser.add_argument('--resample_rounds', type=int, default=1, help='Resample rounds for imputation.')
+    parser.add_argument('--impute_condition', type=str, default=None, help='Imputation condition.')
+    parser.add_argument('--w_num', type=float, default=1.0, help='Weight for numerical features.')
+    parser.add_argument('--w_cat', type=float, default=1.0, help='Weight for categorical features.')
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode.')
+    parser.add_argument('--deterministic', action='store_true', help='Enable deterministic mode.')
+    parser.add_argument('--report', action='store_true', help='Generate report.')
+    parser.add_argument('--no_wandb', action='store_true', help='Disable wandb logging.')
+    parser.add_argument('--num_runs', type=int, default=1, help='Number of runs for reporting.')
+    parser.add_argument('--trial_start', type=int, default=0, help='Trial start for imputation.')
+    parser.add_argument('--trial_size', type=int, default=1, help='Trial size for imputation.')
+    parser.add_argument('--y_only_model_path', type=str, default=None, help='Path to y_only model for imputation.')
 
     args = parser.parse_args()
 
@@ -298,3 +318,5 @@ if __name__ == '__main__':
         args.device = f'cuda:{args.gpu}'
     else:
         args.device = 'cpu'
+
+    main(args)
