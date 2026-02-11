@@ -1,6 +1,9 @@
  # 1. Set up environment
+
+  
   conda env create -f tabdiff.yaml
   conda activate tabdiff
+  pip install kaleido==0.2.1
 
   For Existing Datasets (e.g., Adult, Diabetes, etc.)
 
