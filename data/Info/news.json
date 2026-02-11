@@ -58,8 +58,7 @@
         45
     ],
     "file_type": "csv",
-    "raw_data_path": "data/news/OnlineNewsPopularity/OnlineNewsPopularity.csv",
-    "test_path": null,
-    "val_path": null,
-    "data_path": "data/news/news.csv"
+    "data_path": "../../data/gold/news/train.csv",
+    "test_path": "../../data/gold/news/test.csv",
+    "header": 0
 }

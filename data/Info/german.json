@@ -1,0 +1,59 @@
+{
+    "name": "german",
+    "task_type": "binclass",
+    "header": 0,
+    "column_names": [
+        "status",
+        "duration",
+        "history",
+        "purpose",
+        "amount",
+        "savings",
+        "employment",
+        "installment_rate",
+        "personal_status",
+        "debtors",
+        "residence",
+        "property",
+        "age",
+        "plans",
+        "housing",
+        "existing_credits",
+        "job",
+        "maintenance",
+        "telephone",
+        "foreign",
+        "target"
+    ],
+    "num_col_idx": [
+        1,
+        4,
+        7,
+        10,
+        12,
+        15,
+        17
+    ],
+    "cat_col_idx": [
+        0,
+        2,
+        3,
+        5,
+        6,
+        8,
+        9,
+        11,
+        13,
+        14,
+        16,
+        18,
+        19
+    ],
+    "target_col_idx": [
+        20
+    ],
+    "file_type": "csv",
+    "data_path": "../../data/gold/german/train.csv",
+    "val_path": null,
+    "test_path": "../../data/gold/german/test.csv"
+}

@@ -42,10 +42,9 @@
         "readmitted"
     ],
     "file_type": "csv",
-    "raw_data_path": "data/diabetes/diabetic_data.csv",
-    "data_path": "data/diabetes/diabetic_train.csv",
-    "val_path": "data/diabetes/diabetic_val.csv",
-    "test_path": "data/diabetes/diabetic_test.csv",
+    "data_path": "../../data/gold/diabetes/train.csv",
+    "test_path": "../../data/gold/diabetes/test.csv",
+    "header": 0,
     "num_col_idx": [
         0,
         1,

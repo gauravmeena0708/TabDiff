@@ -1,0 +1,28 @@
+{
+    "name": "compas",
+    "task_type": "binclass",
+    "header": 0,
+    "column_names": null,
+    "num_col_idx": [
+        0,
+        2,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+    ],
+    "cat_col_idx": [
+        1,
+        3,
+        4
+    ],
+    "target_col_idx": [
+        11
+    ],
+    "file_type": "csv",
+    "data_path": "../../data/gold/compas/train.csv",
+    "val_path": null,
+    "test_path": "../../data/gold/compas/test.csv"
+}

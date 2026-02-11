@@ -1,7 +1,7 @@
 {
     "name": "adult_dcr",
     "task_type": "binclass",
-    "header": null,
+    "header": 0,
     "column_names": [
         "age",
         "workclass",
@@ -41,9 +41,9 @@
         14
     ],
     "file_type": "csv",
-    "data_path": "data/adult_dcr/adult.data",
+    "data_path": "../../data/gold/adult/train.csv",
     "val_path": null,
-    "test_path": "data/adult_dcr/adult.test",
+    "test_path": "../../data/gold/adult/test.csv",
     "column_info": {
         "age": "float",
         "workclass": "str",
