@@ -53,7 +53,7 @@
         20
     ],
     "file_type": "csv",
-    "data_path": "../../data/gold/german/train.csv",
+    "data_path": "../../data/processed/german/train.csv",
     "val_path": null,
-    "test_path": "../../data/gold/german/test.csv"
+    "test_path": "../../data/processed/german/test.csv",
 }

@@ -34,7 +34,7 @@
         23
     ],
     "file_type": "csv",
-    "data_path": "../../data/gold/default/train.csv",
+    "data_path": "../../data/processed/default/train.csv",
     "val_path": null,
-    "test_path": "../../data/gold/default/test.csv"
+    "test_path": "../../data/processed/default/test.csv",
 }

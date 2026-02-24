@@ -1,7 +1,7 @@
 {
     "name": "magic",
     "task_type": "binclass",
-    "header": "infer",
+    "header": 0,
     "column_names": [
         "Length",
         "Width",
@@ -32,7 +32,7 @@
         10
     ],
     "file_type": "csv",
-    "data_path": "../../data/gold/magic/train.csv",
-    "test_path": "../../data/gold/magic/test.csv",
-    "header": 0,
+    "data_path": "../../data/processed/magic/train.csv",
+    "test_path": "../../data/processed/magic/test.csv",
+    "val_path": null
 }

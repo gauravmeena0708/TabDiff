@@ -28,6 +28,7 @@
         17
     ],
     "file_type": "csv",
-    "data_path": "../../data/gold/shoppers/train.csv",
-    "test_path": "../../data/gold/shoppers/test.csv"
+    "data_path": "../../data/processed/shoppers/train.csv",
+    "test_path": "../../data/processed/shoppers/test.csv",
+    "val_path": null
 }

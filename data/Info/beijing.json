@@ -23,7 +23,7 @@
     ],
     "file_type": "csv",
     "raw_data_path": "data/beijing/PRSA_data_2010.1.1-2014.12.31.csv",
-    "test_path": "../../data/gold/beijing/test.csv",
+    "test_path": "../../data/processed/beijing/test.csv",
     "val_path": null,
-    "data_path": "../../data/gold/beijing/train.csv"
+    "data_path": "../../data/processed/beijing/train.csv"
 }

@@ -45,7 +45,7 @@
     "raw_data_path": "data/diabetes_dcr/diabetic_data.csv",
     "data_path": "data/diabetes_dcr/diabetic_train.csv",
     "val_path": "data/diabetes_dcr/diabetic_val.csv",
-    "test_path": "data/diabetes_dcr/diabetic_test.csv",
+    "test_path": null,
     "num_col_idx": [
         0,
         1,

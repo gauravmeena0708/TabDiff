@@ -1,7 +1,7 @@
 {
     "name": "news",
     "task_type": "regression",
-    "header": "infer",
+    "header": 0,
     "column_names": null,
     "num_col_idx": [
         0,
@@ -58,7 +58,8 @@
         45
     ],
     "file_type": "csv",
-    "data_path": "../../data/gold/news/train.csv",
-    "test_path": "../../data/gold/news/test.csv",
-    "header": 0
+    "data_path": "data/news/news.csv",
+    "test_path": null,
+    "val_path": null,
+    "raw_data_path": "data/news/OnlineNewsPopularity/OnlineNewsPopularity.csv"
 }

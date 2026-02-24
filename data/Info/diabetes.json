@@ -1,7 +1,7 @@
 {
     "name": "diabetes",
     "task_type": "binclass",
-    "header": "infer",
+    "header": 0,
     "column_names": [
         "num_lab_procedures",
         "num_medications",
@@ -42,9 +42,8 @@
         "readmitted"
     ],
     "file_type": "csv",
-    "data_path": "../../data/gold/diabetes/train.csv",
-    "test_path": "../../data/gold/diabetes/test.csv",
-    "header": 0,
+    "data_path": "../../data/processed/diabetes/train.csv",
+    "test_path": "../../data/processed/diabetes/test.csv",
     "num_col_idx": [
         0,
         1,
@@ -87,5 +86,7 @@
     ],
     "target_col_idx": [
         36
-    ]
+    ],
+    "val_path": null,
+    "raw_data_path": "data/diabetes/diabetic_data.csv"
 }
