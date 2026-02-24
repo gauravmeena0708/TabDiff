@@ -120,6 +120,9 @@ def main(args):
         raw_config['train']['main']['batch_size'] = 4096
         raw_config['sample']['batch_size'] = 10000
 
+    if args.batch_size is not None:
+        raw_config['train']['main']['batch_size'] = args.batch_size
+
     ## Load training data
     batch_size = raw_config['train']['main']['batch_size']
 
@@ -255,7 +258,11 @@ def main(args):
         result_save_path=raw_config['result_save_path'],
         device=device,
         ckpt_path=ckpt_path,
-        y_only=args.y_only
+        y_only=args.y_only,
+        dp=args.dp,
+        epsilon=args.epsilon,
+        delta=args.delta,
+        max_grad_norm=args.max_grad_norm
     )
     if args.mode == 'test':
         if args.report:
@@ -272,9 +279,16 @@ def main(args):
                 imputed_sample_save_dir,
                 args.w_num,
                 args.w_cat,
+                stochastic_start_ratio=args.stochastic_start_ratio,
+                s_churn=args.s_churn,
+                privacy_noise_scale=args.privacy_noise_scale
             )
         else:
-            trainer.test()
+            trainer.test(
+                stochastic_start_ratio=args.stochastic_start_ratio,
+                s_churn=args.s_churn,
+                privacy_noise_scale=args.privacy_noise_scale
+            )
     else:
         ## Save config
         config_save_path = raw_config['model_save_path']
@@ -307,9 +321,20 @@ if __name__ == '__main__':
     parser.add_argument('--report', action='store_true', help='Generate report.')
     parser.add_argument('--no_wandb', action='store_true', help='Disable wandb logging.')
     parser.add_argument('--num_runs', type=int, default=1, help='Number of runs for reporting.')
+    # DP-SGD arguments
+    parser.add_argument('--dp', action='store_true', help='Enable Differential Privacy (DP-SGD).')
+    parser.add_argument('--epsilon', type=float, default=10.0, help='Target epsilon for DP.')
+    parser.add_argument('--delta', type=float, default=1e-5, help='Target delta for DP.')
+    parser.add_argument('--max_grad_norm', type=float, default=1.0, help='Max gradient norm for DP clipping.')
+    
     parser.add_argument('--trial_start', type=int, default=0, help='Trial start for imputation.')
     parser.add_argument('--trial_size', type=int, default=1, help='Trial size for imputation.')
     parser.add_argument('--y_only_model_path', type=str, default=None, help='Path to y_only model for imputation.')
+
+    # Privacy arguments (Non-DP)
+    parser.add_argument('--stochastic_start_ratio', type=float, default=1.0, help='Ratio of time steps to start guidance. 0.0 means stochastic from start.')
+    parser.add_argument('--s_churn', type=float, default=0, help='Stochasticity strength (churn).')
+    parser.add_argument('--privacy_noise_scale', type=float, default=0.0, help='Scale of noise injected at midpoint.')
 
     args = parser.parse_args()
 

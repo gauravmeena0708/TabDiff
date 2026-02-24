@@ -253,7 +253,8 @@ def generate_conditional_samples(
     w_cat=0.6,
     resample_rounds=1,
     ckpt_path=None,
-    device='cuda'
+    device='cuda',
+    privacy_method='stochastic'  # 'none', 'stochastic', or 'midpoint'
 ):
     """
     Generate synthetic samples with a specific column fixed to a value.
@@ -352,16 +353,32 @@ def generate_conditional_samples(
     print(f"Numerical columns to generate: {num_mask_idx}")
     print(f"Categorical columns to generate: {cat_mask_idx}")
 
+    # Configure privacy method
+    if privacy_method == 'stochastic':
+        impute_condition = 'x_0'
+        stochastic_start_ratio = 0.0
+        s_churn = 1.0
+    elif privacy_method == 'midpoint':
+        impute_condition = 'x_0'
+        stochastic_start_ratio = 1.0  # Disable stochastic
+        s_churn = 1.0
+    else:  # 'none'
+        impute_condition = 'x_0'
+        stochastic_start_ratio = 1.0
+        s_churn = 1.0
+    
     # Generate samples using the impute method
-    # Note: This uses "x_0" conditioning to keep the condition column clean
     with torch.no_grad():
         syn_data = diffusion.sample_impute(
             x_num, x_cat,
             num_mask_idx, cat_mask_idx,
             resample_rounds=resample_rounds,
-            impute_condition="x_0",  # Keep condition column clean
+            impute_condition=impute_condition,
             w_num=w_num,
-            w_cat=w_cat
+            w_cat=w_cat,
+            stochastic_start_ratio=stochastic_start_ratio,
+            s_churn=s_churn,
+            privacy_noise_scale=0.2 if privacy_method == 'midpoint' else 0.0
         )
 
     print(f"\nGenerated samples shape: {syn_data.shape}")
@@ -439,6 +456,8 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default='conditional_samples', help='Output directory')
     parser.add_argument('--ckpt_path', type=str, default=None, help='Path to model checkpoint (optional)')
     parser.add_argument('--device', type=str, default='cuda', help='Device (cuda or cpu)')
+    parser.add_argument('--privacy_method', type=str, default='stochastic', choices=['none', 'stochastic', 'midpoint'],
+                        help='Privacy method: none (baseline), stochastic (best privacy), midpoint (legacy hack)')
 
     args = parser.parse_args()
 
@@ -452,7 +471,8 @@ if __name__ == '__main__':
         w_cat=args.w_cat,
         resample_rounds=args.resample_rounds,
         ckpt_path=args.ckpt_path,
-        device=args.device
+        device=args.device,
+        privacy_method=args.privacy_method
     )
 
     # Save results

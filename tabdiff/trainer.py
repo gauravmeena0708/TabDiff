@@ -12,6 +12,14 @@ from copy import deepcopy
 from utils_train import update_ema
 
 from tqdm import tqdm
+try:
+    from opacus import PrivacyEngine
+    # We import GradSampleModule from the specific module to force hooks-based implementation
+    # preventing Functorch/RuntimeError issues.
+    from opacus.grad_sample.grad_sample_module import GradSampleModule
+except ImportError:
+    PrivacyEngine = None
+    GradSampleModule = None
 
 BAR = "=============="
 def print_with_bar(log_msg):
@@ -36,9 +44,17 @@ class Trainer:
             device=torch.device('cuda:1'),
             ckpt_path = None,
             y_only=False,
+            dp=False,
+            epsilon=10.0,
+            delta=1e-5,
+            max_grad_norm=1.0,
             **kwargs
     ):
         self.y_only = y_only
+        self.dp = dp
+        self.epsilon = epsilon
+        self.delta = delta
+        self.max_grad_norm = max_grad_norm
         self.diffusion = diffusion
         self.ema_model = deepcopy(self.diffusion._denoise_fn)
         for param in self.ema_model.parameters():
@@ -58,10 +74,57 @@ class Trainer:
         self.optimizer = torch.optim.AdamW(self.diffusion.parameters(), lr=lr, weight_decay=weight_decay)
         self.ema_decay = ema_decay
         self.lr_scheduler = lr_scheduler
-        self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=reduce_lr_patience, verbose=True)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', factor=factor, patience=reduce_lr_patience)
+        self.closs_weight_schedule = closs_weight_schedule
+        self.c_lambda = c_lambda
         self.closs_weight_schedule = closs_weight_schedule
         self.c_lambda = c_lambda
         self.d_lambda = d_lambda
+
+        # Initialize DP-SGD if enabled
+        self.privacy_engine = None
+        if self.dp:
+            if PrivacyEngine is None:
+                raise ImportError("Opacus is required for DP-SGD. Please install it.")
+            
+            self.privacy_engine = PrivacyEngine()
+            
+            # Wrap model manually using Hook-based GradSampleModule to disable strict mode
+            # and avoid Functorch issues.
+            self.diffusion = GradSampleModule(self.diffusion, strict=False)
+            
+            # We use make_private_with_epsilon directly below
+            
+            # Re-calibrate noise to match target epsilon
+            # Note: make_private_with_epsilon is a helper in newer opacus versions.
+            # If not available, we might need to verify opacus version.
+            # Assuming standard make_private usage for now, but to strictly target epsilon we might need to find the noise multiplier.
+            # For simplicity in this implementation, we will try to achieve the target epsilon.
+            
+            # Actually, let's use make_private_with_epsilon which is the high-level API for "I want this epsilon".
+            # Re-doing the init to use make_private_with_epsilon if possible, but PrivacyEngine() object doesn't have it directly in some versions.
+            # It is often: privacy_engine = PrivacyEngine(); privacy_engine.make_private(...)
+            
+            # Let's check if we can calculate sigma (noise_multiplier) from epsilon.
+            # This is safer to do explicitly if we want to guarantee epsilon.
+            # But for now, let's rely on make_private_with_epsilon logic if we can, OR simply use make_private and log the epsilon.
+            
+            # Correction: We should use `privacy_engine.make_private_with_epsilon`.
+    
+            # Restoring original objects to use the wrapped ones
+            # Implementation detail: Opacus 1.0+ API
+             
+            self.diffusion, self.optimizer, self.train_iter = self.privacy_engine.make_private_with_epsilon(
+                module=self.diffusion,
+                optimizer=self.optimizer,
+                data_loader=train_iter,
+                epochs=steps, # This is 'steps' which usually means epochs in this repo context? 
+                # Wait, 'steps' in Trainer init is "total number of epoch". Yes.
+                target_epsilon=epsilon,
+                target_delta=delta,
+                max_grad_norm=max_grad_norm,
+            )
+            print(f"DP-SGD Enabled. Target Epsilon: {epsilon}, Delta: {delta}, Max Grad Norm: {max_grad_norm}")
 
         self.batch_size = batch_size
         self.sample_batch_size = sample_batch_size
@@ -96,7 +159,13 @@ class Trainer:
 
         self.optimizer.zero_grad()
 
-        dloss, closs = self.diffusion.mixed_loss(x)
+        if hasattr(self.diffusion, 'mixed_loss'):
+            dloss, closs = self.diffusion.mixed_loss(x)
+        elif hasattr(self.diffusion, '_module'):
+             dloss, closs = self.diffusion._module.mixed_loss(x)
+        else:
+             dloss, closs = self.diffusion.module.mixed_loss(x)
+
 
         loss = dloss_weight * dloss + closs_weight * closs
         loss.backward()
@@ -170,9 +239,14 @@ class Trainer:
                     "closs_weight": closs_weight,
                     "dloss_weight": dloss_weight,
                 })
-                
-            # Log training Loss
-            log_dict = {}
+            
+            # Log privacy budget
+            if self.dp and self.privacy_engine:
+                epsilon_spent = self.privacy_engine.get_epsilon(self.delta)
+                print(f"Epoch {epoch+1} Privacy Budget Spent: Epsilon = {epsilon_spent:.4f}")
+                log_dict = {"privacy/epsilon": epsilon_spent}
+            else:
+                log_dict = {}
             mloss = np.around(curr_dloss / curr_count, 4)
             gloss = np.around(curr_closs / curr_count, 4)
             total_loss = mloss + gloss
@@ -444,7 +518,7 @@ class Trainer:
         return out_metrics, extras, syn_df
         
 
-    def sample_synthetic(self, num_samples, keep_nan_samples=True, ema=False):
+    def sample_synthetic(self, num_samples, keep_nan_samples=True, ema=False, stochastic_start_ratio=1.0, s_churn=0, privacy_noise_scale=0.0):
         if ema:
             curr_model, curr_num_schedule, curr_cat_schedule = self.to_ema_model()
         info = self.metrics.info
@@ -452,7 +526,10 @@ class Trainer:
         print_with_bar(f"Starting Sampling, total samples to generate = {num_samples}")
         start_time = time.time()
         
-        syn_data = self.diffusion.sample_all(num_samples, self.sample_batch_size, keep_nan_samples=keep_nan_samples)
+        syn_data = self.diffusion.sample_all(
+            num_samples, self.sample_batch_size, keep_nan_samples=keep_nan_samples,
+            stochastic_start_ratio=stochastic_start_ratio, s_churn=s_churn, privacy_noise_scale=privacy_noise_scale
+        )
         print(f"Shape of the generated sample = {syn_data.shape}")
         
         if keep_nan_samples:
@@ -508,7 +585,10 @@ class Trainer:
         self.diffusion.num_schedule = curr_num_schedule
         self.diffusion.cat_schedule = curr_cat_schedule
         
-    def test_impute(self, trail_start, trial_size, resample_rounds, impute_condition, imputed_sample_save_dir, w_num, w_cat):
+    def test_impute(
+        self, trail_start, trial_size, resample_rounds, impute_condition, imputed_sample_save_dir, w_num, w_cat,
+        stochastic_start_ratio=1.0, s_churn=0, privacy_noise_scale=0.0
+    ):
         self.diffusion.eval()
         
         info = self.metrics.info
@@ -540,7 +620,10 @@ class Trainer:
                     x_cat_test[:, cat_mask_idx] = torch.tensor(categories, dtype=x_cat_test.dtype, device=x_cat_test.device)[cat_mask_idx]
                 
                 # Sample imputed tables
-                syn_data = self.diffusion.sample_impute(x_num_test, x_cat_test, num_mask_idx, cat_mask_idx, resample_rounds, impute_condition, w_num, w_cat)
+                syn_data = self.diffusion.sample_impute(
+                    x_num_test, x_cat_test, num_mask_idx, cat_mask_idx, resample_rounds, impute_condition, w_num, w_cat,
+                    stochastic_start_ratio=stochastic_start_ratio, s_churn=s_churn, privacy_noise_scale=privacy_noise_scale
+                )
                 print(f"Shape of the imputed sample = {syn_data.shape}")
 
                 # Recover tables

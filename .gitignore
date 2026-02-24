@@ -16,3 +16,4 @@ tabdiff/result/
 .claude/*
 conditional_samples/*
 *.log
+*.pt

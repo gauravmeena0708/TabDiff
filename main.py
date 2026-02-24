@@ -25,6 +25,13 @@ if __name__ == '__main__':
     parser.add_argument('--report', action='store_true', help="Report testing mode: this mode sequentially runs <num_runs> test runs and report the avg and std")
     parser.add_argument('--num_runs', type=int, default=20, help="Number of runs to be averaged in the report testing mode")
     
+    # DP-SGD arguments
+    parser.add_argument('--dp', action='store_true', help='Enable Differential Privacy (DP-SGD)')
+    parser.add_argument('--epsilon', type=float, default=10.0, help='Target epsilon for DP')
+    parser.add_argument('--delta', type=float, default=1e-5, help='Target delta for DP')
+    parser.add_argument('--max_grad_norm', type=float, default=1.0, help='Max gradient norm for DP clipping')
+    parser.add_argument('--batch_size', type=int, default=None, help='Batch size for training')
+    
     # Configs for imputation
     parser.add_argument('--impute', action='store_true')
     parser.add_argument('--trial_start', type=int, default=0)
@@ -34,6 +41,11 @@ if __name__ == '__main__':
     parser.add_argument('--y_only_model_path', type=str, default=None, help="Path to the y_only model checkpoint that will be used as the unconditional guidance model")
     parser.add_argument('--w_num', type=float, default=0.6)
     parser.add_argument('--w_cat', type=float, default=0.6)
+
+    # Privacy arguments (Non-DP)
+    parser.add_argument('--stochastic_start_ratio', type=float, default=1.0, help='Ratio of time steps to start guidance. 0.0 means stochastic from start.')
+    parser.add_argument('--s_churn', type=float, default=0, help='Stochasticity strength (churn).')
+    parser.add_argument('--privacy_noise_scale', type=float, default=0.0, help='Scale of noise injected at midpoint.')
 
     args = parser.parse_args()
 

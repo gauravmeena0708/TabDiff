@@ -500,7 +500,10 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
         return x_num_next, x_cat_next, q_xs
 
 
-    def sample_impute(self, x_num, x_cat, num_mask_idx, cat_mask_idx, resample_rounds, impute_condition, w_num, w_cat):
+    def sample_impute(
+        self, x_num, x_cat, num_mask_idx, cat_mask_idx, resample_rounds, impute_condition, w_num, w_cat,
+        stochastic_start_ratio=1.0, s_churn=0, privacy_noise_scale=0.0
+    ):
         self.w_num = w_num
         self.w_cat = w_cat
         self.num_mask_idx = num_mask_idx
@@ -529,13 +532,19 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
         sigma_cat_next[1:] = sigma_cat_cur[0:-1]
         
         # Prepare sigma_hat for stochastic sampling mode
-        if self.sampler_params['stochastic_sampler']:
+        # If user provides s_churn via argument, it overrides sampler_params
+        S_churn = s_churn if s_churn > 0 else self.sampler_params.get('S_churn', 0)
+        S_min = self.sampler_params.get('S_min', 0)
+        S_max = self.sampler_params.get('S_max', float('inf'))
+        S_noise = self.sampler_params.get('S_noise', 1)
+
+        if S_churn > 0 or self.sampler_params.get('stochastic_sampler', False):
             gamma = min(S_churn / self.num_timesteps, np.sqrt(2) - 1) * (S_min <= sigma_num_cur) * (sigma_num_cur <= S_max)
             sigma_num_hat = sigma_num_cur + gamma * sigma_num_cur
             t_hat = self.num_schedule.inverse_to_t(sigma_num_hat)
-            t_hat = torch.min(t_hat, dim=-1, keepdim=True).values    # take the samllest t_hat induced by sigma_num
-            zero_gamma = (gamma==0).any()
-            t_hat[zero_gamma] = t[zero_gamma]
+            t_hat = torch.min(t_hat, dim=-1, keepdim=True).values    # take the smallest t_hat induced by sigma_num
+            zero_gamma = (gamma==0).all(dim=1, keepdim=True)
+            t_hat[zero_gamma.squeeze()] = t[zero_gamma.squeeze()]
             out_of_bound = (t_hat > 1).squeeze()
             sigma_num_hat[out_of_bound] = sigma_num_cur[out_of_bound]
             t_hat[out_of_bound] = t[out_of_bound]
@@ -566,6 +575,15 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
         pbar = tqdm(reversed(range(0, self.num_timesteps)), total=self.num_timesteps)
         pbar.set_description(f"Sampling Progress")
         for i in pbar:
+            # Check for guidance start ratio (Stochastic sampling from start)
+            # If t[i] > stochastic_start_ratio, we disable guidance by setting weights to 0
+            current_w_num = self.w_num if t[i] <= stochastic_start_ratio else 0.0
+            current_w_cat = self.w_cat if t[i] <= stochastic_start_ratio else 0.0
+
+            # Midpoint noise hack: Inject noise at exactly the midpoint of the process
+            if privacy_noise_scale > 0 and i == self.num_timesteps // 2:
+                z_norm = z_norm + torch.randn_like(z_norm) * privacy_noise_scale
+
             for u in range (resample_rounds):
                 # Get known parts by Forward Flow
                 if impute_condition == "x_t":
@@ -577,12 +595,20 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
                     z_cat_known = x_cat
                 
                 # Get unknown by Reverse Step
+                # Temporarily override weights
+                original_w_num, original_w_cat = self.w_num, self.w_cat
+                self.w_num, self.w_cat = current_w_num, current_w_cat
+
                 z_norm_unknown, z_cat_unknown, q_xs = self.edm_update(
                     z_norm, z_cat, i, 
                     t[i], t[i-1] if i > 0 else None, t_hat[i],
                     sigma_num_cur[i], sigma_num_next[i], sigma_num_hat[i], 
                     sigma_cat_cur[i], sigma_cat_next[i], sigma_cat_hat[i],
                 )
+
+                # Restore weights
+                self.w_num, self.w_cat = original_w_num, original_w_cat
+
                 z_norm = (1 - num_mask)  * z_norm_known + num_mask * z_norm_unknown
                 z_cat = (1 - cat_mask) * z_cat_known + cat_mask * z_cat_unknown
 
