@@ -37,6 +37,95 @@ def main(args):
     dataname = args.dataname
     data_dir = f'data/{dataname}'
     info_path = f'data/{dataname}/info.json'
+    
+    if getattr(args, 'data_csv', None):
+        import pandas as pd
+        from sklearn.preprocessing import OrdinalEncoder
+        os.makedirs(data_dir, exist_ok=True)
+        df = pd.read_csv(args.data_csv)
+        
+        # Simple heuristic: last column is target, others are inferred
+        target_col = df.columns[-1]
+        cat_cols = []
+        num_cols = []
+        for col in df.columns[:-1]:
+            if df[col].dtype == 'object' or df[col].nunique() < 15:
+                cat_cols.append(col)
+            else:
+                num_cols.append(col)
+        
+        # Categorical Encoding
+        cat_encoders = {}
+        X_cat_train = np.empty((len(df), len(cat_cols)), dtype=int)
+        for i, col in enumerate(cat_cols):
+            encoder = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+            X_cat_train[:, i] = encoder.fit_transform(df[[col]]).flatten()
+            cat_encoders[col] = encoder.categories_[0].tolist()
+            
+        X_num_train = df[num_cols].to_numpy().astype(np.float32) if num_cols else np.zeros((len(df), 0), dtype=np.float32)
+        
+        # Target
+        target_encoder = OrdinalEncoder()
+        y_train = target_encoder.fit_transform(df[[target_col]]).flatten().astype(np.int64)
+        
+        np.save(f'{data_dir}/X_num_train.npy', X_num_train)
+        np.save(f'{data_dir}/X_cat_train.npy', X_cat_train)
+        np.save(f'{data_dir}/y_train.npy', y_train)
+
+        # Fallback for test and val (dup train to avoid empty array errors in scalers)
+        for split in ['test', 'val']:
+            np.save(f'{data_dir}/X_num_{split}.npy', X_num_train)
+            np.save(f'{data_dir}/X_cat_{split}.npy', X_cat_train)
+            np.save(f'{data_dir}/y_{split}.npy', y_train)
+            
+        # Synthetic Dir CSVs
+        syn_dir = f'synthetic/{dataname}'
+        os.makedirs(syn_dir, exist_ok=True)
+        df.to_csv(f'{syn_dir}/real.csv', index=False)
+        df.to_csv(f'{syn_dir}/test.csv', index=False)
+        df.to_csv(f'{syn_dir}/val.csv', index=False)
+        
+        # info.json
+        col_names = num_cols + cat_cols + [target_col]
+        num_col_idx = list(range(len(num_cols)))
+        cat_col_idx = list(range(len(num_cols), len(num_cols) + len(cat_cols)))
+        target_col_idx = [len(col_names) - 1]
+        
+        int_columns = []
+        int_col_idx = []
+        int_col_idx_wrt_num = []
+        for i, col in enumerate(num_cols):
+            if (df[col] % 1 == 0).all():
+                int_columns.append(col)
+                int_col_idx.append(i)
+                int_col_idx_wrt_num.append(i)
+                
+        info = {
+            "name": dataname,
+            "task_type": "binclass" if df[target_col].nunique() == 2 else "multiclass",
+            "header": 0,
+            "column_names": col_names,
+            "num_col_idx": num_col_idx,
+            "cat_col_idx": cat_col_idx,
+            "target_col_idx": target_col_idx,
+            "int_columns": int_columns,
+            "int_col_idx": int_col_idx,
+            "int_col_idx_wrt_num": int_col_idx_wrt_num,
+            "cat_encoders": cat_encoders,
+            "train_num": len(df),
+            "test_num": 0,
+            "val_num": 0,
+            "idx_mapping": {str(i): i for i in range(len(col_names))},
+            "inverse_idx_mapping": {str(i): i for i in range(len(col_names))},
+            "idx_name_mapping": {str(i): name for i, name in enumerate(col_names)},
+            "metadata": {
+                "columns": {str(i): {"sdtype": "numerical" if i in num_col_idx else "categorical"} for i in range(len(col_names))}
+            }
+        }
+        with open(info_path, 'w') as f:
+            json.dump(info, f, indent=4)
+        print(f"Dynamically generated {dataname} from {args.data_csv}")
+
     with open(info_path, 'r') as f:
         info = json.load(f)
     

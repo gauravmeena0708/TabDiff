@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import json
 import os
+from datetime import datetime
 from tabdiff.models.unified_ctime_diffusion import UnifiedCtimeDiffusion
 from tabdiff.modules.main_modules import MLPDiffusion, UniModMLP, Model
 from utils_train import preprocess
@@ -83,6 +84,59 @@ def load_model_and_info(dataname, ckpt_path=None, device='cuda'):
     config_path = os.path.join(os.path.dirname(ckpt_path), 'config.pkl')
     with open(config_path, 'rb') as f:
         config = pickle.load(f)
+
+    # --- Diagnostics about training ---
+    def _print_training_diagnostics():
+        # when/where
+        try:
+            trained_ts = datetime.fromtimestamp(os.path.getmtime(ckpt_path))
+            print(f"Checkpoint timestamp (file mtime): {trained_ts.isoformat()}")
+        except Exception as exc:
+            print(f"Could not read checkpoint mtime: {exc}")
+
+        steps = None
+        try:
+            steps = config.get('train', {}).get('main', {}).get('steps')
+        except Exception:
+            steps = None
+        if steps is not None:
+            print(f"Training steps (from config): {steps}")
+        else:
+            print("Training steps not found in config.")
+
+        # Show headers + first two raw training rows to spot leading spaces / dot columns
+        raw_paths = []
+        # Preferred: data_path relative to info json
+        if 'data_path' in info:
+            rel = info['data_path']
+            raw_paths.append(os.path.abspath(os.path.join(os.path.dirname(info_path), rel)))
+        # Common fallbacks
+        raw_paths.append(f"data/{dataname}/{dataname}.data")
+        raw_paths.append(f"data/{dataname}/train.csv")
+
+        shown = False
+        for p in raw_paths:
+            if os.path.exists(p):
+                print(f"Previewing training data from: {p}")
+                try:
+                    with open(p, 'r') as f:
+                        header = next(f).rstrip('\n')
+                        lines = [next(f) for _ in range(2)]
+                    print(f"Header: {header}")
+                    # print raw to expose leading spaces / dots
+                    for i, line in enumerate(lines, 1):
+                        line_clean = line.rstrip('\n')
+                        print(f"Train line {i}: {line_clean}")
+                    shown = True
+                except StopIteration:
+                    print("Training file shorter than 2 lines.")
+                except Exception as exc:
+                    print(f"Could not read training file {p}: {exc}")
+                break
+        if not shown:
+            print("No training data preview available (file not found).")
+
+    _print_training_diagnostics()
 
     # Extract model parameters from config
     model_params = config['unimodmlp_params']
@@ -353,19 +407,22 @@ def generate_conditional_samples(
     print(f"Numerical columns to generate: {num_mask_idx}")
     print(f"Categorical columns to generate: {cat_mask_idx}")
 
-    # Configure privacy method
+    # Configure privacy method correctly for valid diffusion math
     if privacy_method == 'stochastic':
-        impute_condition = 'x_0'
-        stochastic_start_ratio = 0.0
-        s_churn = 1.0
+        impute_condition = 'x_t'     # Start from pure noise
+        stochastic_start_ratio = 1.0 # Keep CFG guidance ON
+        s_churn = 1.0                # Enable stochastic noise injection
+        privacy_noise_scale = 0.0
     elif privacy_method == 'midpoint':
-        impute_condition = 'x_0'
-        stochastic_start_ratio = 1.0  # Disable stochastic
-        s_churn = 1.0
-    else:  # 'none'
-        impute_condition = 'x_0'
-        stochastic_start_ratio = 1.0
-        s_churn = 1.0
+        impute_condition = 'x_t'     # Start from pure noise
+        stochastic_start_ratio = 1.0 # Keep CFG guidance ON
+        s_churn = 0.0                # Disable standard stochasticity
+        privacy_noise_scale = 0.2    # Inject manual noise at midpoint
+    else:  # 'none' (Baseline deterministic)
+        impute_condition = 'x_t'     # Start from pure noise
+        stochastic_start_ratio = 1.0 # Keep CFG guidance ON
+        s_churn = 0.0                # Purely deterministic ODE sampling
+        privacy_noise_scale = 0.0
     
     # Generate samples using the impute method
     with torch.no_grad():
@@ -378,7 +435,7 @@ def generate_conditional_samples(
             w_cat=w_cat,
             stochastic_start_ratio=stochastic_start_ratio,
             s_churn=s_churn,
-            privacy_noise_scale=0.2 if privacy_method == 'midpoint' else 0.0
+            privacy_noise_scale=privacy_noise_scale
         )
 
     print(f"\nGenerated samples shape: {syn_data.shape}")
