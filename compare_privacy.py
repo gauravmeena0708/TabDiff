@@ -155,6 +155,11 @@ if __name__ == "__main__":
         ("adult", "education", " 11th"),
         ("adult", "education", " Bachelors"),
         ("adult", "occupation", " Sales"),
+        ("adult", "marital-status", " Married-AF-spouse"),
+        ("adult", "native-country", " Yugoslavia"),
+        ("adult", "native-country", " Holand-Netherlands"),
+        ("adult", "workclass", " Never-worked"),
+        ("adult", "workclass", " Without-pay"),
     ]
 
     # Check what else is available in data/ and tabdiff/ckpt/

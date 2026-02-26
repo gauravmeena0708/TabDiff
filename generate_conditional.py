@@ -120,13 +120,15 @@ def load_model_and_info(dataname, ckpt_path=None, device='cuda'):
                 print(f"Previewing training data from: {p}")
                 try:
                     with open(p, 'r') as f:
-                        header = next(f).rstrip('\n')
-                        lines = [next(f) for _ in range(2)]
-                    print(f"Header: {header}")
-                    # print raw to expose leading spaces / dots
-                    for i, line in enumerate(lines, 1):
+                        raw_lines = [next(f) for _ in range(2)]
+                    # Columns from info.json (authoritative)
+                    cols = info.get('column_names', [])
+                    if cols:
+                        print("Columns (from info.json): " + ", ".join(cols))
+                    # Print raw lines to expose leading spaces / dots
+                    for i, line in enumerate(raw_lines, 1):
                         line_clean = line.rstrip('\n')
-                        print(f"Train line {i}: {line_clean}")
+                        print(f"Raw line {i}: {line_clean}")
                     shown = True
                 except StopIteration:
                     print("Training file shorter than 2 lines.")
