@@ -48,6 +48,7 @@ class Trainer:
             epsilon=10.0,
             delta=1e-5,
             max_grad_norm=1.0,
+            burn_in_epochs=4000,
             **kwargs
     ):
         self.y_only = y_only
@@ -55,6 +56,16 @@ class Trainer:
         self.epsilon = epsilon
         self.delta = delta
         self.max_grad_norm = max_grad_norm
+        self.burn_in_epochs = burn_in_epochs
+        self.batch_size = batch_size
+        
+        if self.dp and self.batch_size < 1024:
+            print("\n" + "!" * 80)
+            print("WARNING: DP-SGD requires large batch sizes (typically >= 1024) to overcome")
+            print("noise injection. Your current batch size is small, which may lead to")
+            print("significant degradation in model utility and potentially mode collapse.")
+            print("!" * 80 + "\n")
+
         self.diffusion = diffusion
         self.ema_model = deepcopy(self.diffusion._denoise_fn)
         for param in self.ema_model.parameters():
@@ -93,24 +104,6 @@ class Trainer:
             # and avoid Functorch issues.
             self.diffusion = GradSampleModule(self.diffusion, strict=False)
             
-            # We use make_private_with_epsilon directly below
-            
-            # Re-calibrate noise to match target epsilon
-            # Note: make_private_with_epsilon is a helper in newer opacus versions.
-            # If not available, we might need to verify opacus version.
-            # Assuming standard make_private usage for now, but to strictly target epsilon we might need to find the noise multiplier.
-            # For simplicity in this implementation, we will try to achieve the target epsilon.
-            
-            # Actually, let's use make_private_with_epsilon which is the high-level API for "I want this epsilon".
-            # Re-doing the init to use make_private_with_epsilon if possible, but PrivacyEngine() object doesn't have it directly in some versions.
-            # It is often: privacy_engine = PrivacyEngine(); privacy_engine.make_private(...)
-            
-            # Let's check if we can calculate sigma (noise_multiplier) from epsilon.
-            # This is safer to do explicitly if we want to guarantee epsilon.
-            # But for now, let's rely on make_private_with_epsilon logic if we can, OR simply use make_private and log the epsilon.
-            
-            # Correction: We should use `privacy_engine.make_private_with_epsilon`.
-    
             # Restoring original objects to use the wrapped ones
             # Implementation detail: Opacus 1.0+ API
              
@@ -118,15 +111,13 @@ class Trainer:
                 module=self.diffusion,
                 optimizer=self.optimizer,
                 data_loader=train_iter,
-                epochs=steps, # This is 'steps' which usually means epochs in this repo context? 
-                # Wait, 'steps' in Trainer init is "total number of epoch". Yes.
+                epochs=steps, 
                 target_epsilon=epsilon,
                 target_delta=delta,
                 max_grad_norm=max_grad_norm,
             )
             print(f"DP-SGD Enabled. Target Epsilon: {epsilon}, Delta: {delta}, Max Grad Norm: {max_grad_norm}")
 
-        self.batch_size = batch_size
         self.sample_batch_size = sample_batch_size
         self.num_samples_to_generate = num_samples_to_generate
         self.metrics = metrics
@@ -297,8 +288,8 @@ class Trainer:
             update_ema(self.ema_num_schedule.parameters(), self.diffusion.num_schedule.parameters(), rate=self.ema_decay)
             update_ema(self.ema_cat_schedule.parameters(), self.diffusion.cat_schedule.parameters(), rate=self.ema_decay)
 
-            # Save ckpt base on the best training loss
-            if total_loss < best_loss:
+            # Save ckpt base on the best training loss (only after burn-in phase)
+            if total_loss < best_loss and self.curr_epoch > self.burn_in_epochs:
                 best_loss = total_loss
                 to_remove = glob.glob(os.path.join(self.model_save_path, f"best_model_*"))
                 if to_remove:
@@ -324,8 +315,8 @@ class Trainer:
                 "ema_loss/total_loss": ema_total_loss
             }
             
-            # Save the best ema ckpt
-            if ema_total_loss < best_ema_loss:
+            # Save the best ema ckpt (only after burn-in phase)
+            if ema_total_loss < best_ema_loss and self.curr_epoch > self.burn_in_epochs:
                 best_ema_loss = ema_total_loss
                 to_remove = glob.glob(os.path.join(self.model_save_path, f"best_ema_model_*"))
                 if to_remove:

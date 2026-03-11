@@ -15,6 +15,7 @@ from utils_train import preprocess
 from tabdiff.trainer import split_num_cat_target, recover_data
 import argparse
 import pickle
+import glob as glob_module
 
 def load_model_and_info(dataname, ckpt_path=None, device='cuda'):
     """Load the trained TabDiff model and dataset info"""
@@ -76,6 +77,33 @@ def load_model_and_info(dataname, ckpt_path=None, device='cuda'):
 
         ckpt_path = os.path.join(exp_dir, latest_ckpt)
         print(f"Using checkpoint: {ckpt_path}")
+
+    # Attempt to locate a y_only model for CFG (Classifier-Free Guidance).
+    # Convention: the y_only checkpoint lives in a sibling directory whose name
+    # ends with '_y_only' (e.g. learnable_schedule → learnable_schedule_y_only).
+    _y_only_ckpt_dir = os.path.dirname(ckpt_path) + '_y_only'
+    _y_only_ckpt_paths = glob_module.glob(os.path.join(_y_only_ckpt_dir, '*.pt'))
+    y_only_model = None
+    if _y_only_ckpt_paths:
+        _y_only_ckpt_path = sorted(_y_only_ckpt_paths)[-1]
+        _y_only_config_path = os.path.join(_y_only_ckpt_dir, 'config.pkl')
+        if os.path.exists(_y_only_config_path):
+            print(f"Loading y_only model from: {_y_only_ckpt_path}")
+            with open(_y_only_config_path, 'rb') as _f:
+                _y_only_config = pickle.load(_f)
+            _y_only_mlp = UniModMLP(**_y_only_config['unimodmlp_params'])
+            y_only_model = Model(
+                _y_only_mlp,
+                **_y_only_config['diffusion_params']['edm_params']
+            ).to(device)
+            _y_only_state = torch.load(_y_only_ckpt_path, map_location=device)
+            y_only_model.load_state_dict(_y_only_state['denoise_fn'])
+            y_only_model.eval()
+            print("y_only model loaded — CFG guidance enabled.")
+        else:
+            print(f"y_only checkpoint found but config.pkl missing at {_y_only_config_path}; skipping CFG.")
+    else:
+        print("No y_only model found — CFG guidance disabled.")
 
     # Load checkpoint and config
     checkpoint = torch.load(ckpt_path, map_location=device)
@@ -173,7 +201,7 @@ def load_model_and_info(dataname, ckpt_path=None, device='cuda'):
         num_classes=num_classes,
         num_numerical_features=d_numerical,
         denoise_fn=denoise_fn,
-        y_only_model=None,
+        y_only_model=y_only_model,
         num_timesteps=diffusion_params['num_timesteps'],
         scheduler=diffusion_params['scheduler'],
         cat_scheduler=diffusion_params['cat_scheduler'],

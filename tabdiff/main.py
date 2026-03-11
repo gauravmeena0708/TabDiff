@@ -211,6 +211,8 @@ def main(args):
 
     if args.batch_size is not None:
         raw_config['train']['main']['batch_size'] = args.batch_size
+    if args.burn_in_epochs is not None:
+        raw_config['train']['main']['burn_in_epochs'] = args.burn_in_epochs
 
     ## Load training data
     batch_size = raw_config['train']['main']['batch_size']
@@ -415,6 +417,7 @@ if __name__ == '__main__':
     parser.add_argument('--epsilon', type=float, default=10.0, help='Target epsilon for DP.')
     parser.add_argument('--delta', type=float, default=1e-5, help='Target delta for DP.')
     parser.add_argument('--max_grad_norm', type=float, default=1.0, help='Max gradient norm for DP clipping.')
+    parser.add_argument('--burn_in_epochs', type=int, default=4000, help='Burn-in period before saving best models.')
     
     parser.add_argument('--trial_start', type=int, default=0, help='Trial start for imputation.')
     parser.add_argument('--trial_size', type=int, default=1, help='Trial size for imputation.')

@@ -31,6 +31,7 @@ if __name__ == '__main__':
     parser.add_argument('--epsilon', type=float, default=10.0, help='Target epsilon for DP')
     parser.add_argument('--delta', type=float, default=1e-5, help='Target delta for DP')
     parser.add_argument('--max_grad_norm', type=float, default=1.0, help='Max gradient norm for DP clipping')
+    parser.add_argument('--burn_in_epochs', type=int, default=4000, help='Burn-in period before saving best models')
     parser.add_argument('--batch_size', type=int, default=None, help='Batch size for training')
     
     # Configs for imputation

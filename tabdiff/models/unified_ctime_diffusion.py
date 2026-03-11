@@ -341,7 +341,7 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
         return self.mask_index[None,:] * torch.ones(    
         * batch_dims, dtype=torch.int64, device=self.mask_index.device)
         
-    def _mdlm_update(self, log_p_x0, x, alpha_t, alpha_s):
+    def _mdlm_update(self, log_p_x0, x, alpha_t, alpha_s, temperature=1.0):
         """
             # t: (bs,)
             log_p_x0: (bs, K, K_max)
@@ -369,14 +369,18 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
         dummy_mask = torch.ones_like(q_xs) * dummy_mask
         q_xs *= dummy_mask
         
-        _x = self._sample_categorical(q_xs)
+        _x = self._sample_categorical(q_xs, temperature=temperature)
 
         copy_flag = (x != self.mask_index).to(x.dtype)
         
         z_cat = copy_flag * x + (1 - copy_flag) * _x
         return copy_flag * x + (1 - copy_flag) * _x, q_xs
 
-    def _sample_categorical(self, categorical_probs):
+    def _sample_categorical(self, categorical_probs, temperature=1.0):
+        if temperature != 1.0:
+            # Raise probabilities to 1/temperature before Gumbel sampling.
+            # temperature > 1 flattens the distribution → more diverse/random samples.
+            categorical_probs = categorical_probs ** (1.0 / temperature)
         gumbel_norm = (
             1e-10
             - (torch.rand_like(categorical_probs) + 1e-10).log())
@@ -399,10 +403,11 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
         return loss
     
     def edm_update(
-            self, x_num_cur, x_cat_cur, i, 
+            self, x_num_cur, x_cat_cur, i,
             t_cur, t_next, t_hat,
-            sigma_num_cur, sigma_num_next, sigma_num_hat, 
-            sigma_cat_cur, sigma_cat_next, sigma_cat_hat, 
+            sigma_num_cur, sigma_num_next, sigma_num_hat,
+            sigma_cat_cur, sigma_cat_next, sigma_cat_hat,
+            cat_temperature=1.0,
         ):
         """
         i = T-1,...,0
@@ -465,8 +470,8 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
             logits = self._subs_parameterization(raw_logits, x_cat_hat)
             alpha_t = torch.exp(-sigma_cat_hat).unsqueeze(0).repeat(b,1)
             alpha_s = torch.exp(-sigma_cat_next).unsqueeze(0).repeat(b,1)
-            x_cat_next, q_xs = self._mdlm_update(logits, x_cat_hat, alpha_t, alpha_s)
-        
+            x_cat_next, q_xs = self._mdlm_update(logits, x_cat_hat, alpha_t, alpha_s, temperature=cat_temperature)
+
         # Apply 2nd order correction.
         if self.sampler_params['second_order_correction']:
             if i > 0:
@@ -502,7 +507,7 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
 
     def sample_impute(
         self, x_num, x_cat, num_mask_idx, cat_mask_idx, resample_rounds, impute_condition, w_num, w_cat,
-        stochastic_start_ratio=1.0, s_churn=0, privacy_noise_scale=0.0
+        stochastic_start_ratio=1.0, s_churn=0, privacy_noise_scale=0.0, cat_noise_scale=0.0
     ):
         self.w_num = w_num
         self.w_cat = w_cat
@@ -584,33 +589,43 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
             if privacy_noise_scale > 0 and i == self.num_timesteps // 2:
                 z_norm = z_norm + torch.randn_like(z_norm) * privacy_noise_scale
 
+            # Categorical temperature: cat_noise_scale > 0 flattens the sampling
+            # distribution to produce more diverse (less modal) categorical outputs.
+            # temperature = 1 + cat_noise_scale  (1.0 = no effect, >1 = more random)
+            cat_temperature = 1.0 + cat_noise_scale
+
             for u in range (resample_rounds):
                 # Get known parts by Forward Flow
                 if impute_condition == "x_t":
                     z_norm_known = x_num + torch.randn((b, self.num_numerical_features), device=device) * sigma_num_next[i]
-                    move_chance = 1 - torch.exp(-sigma_cat_next[i]) if i < (self.num_timesteps-1) else torch.ones_like(sigma_cat_next[i])     # force move_chance to be 1 for the first iteration
-                    z_cat_known, _ = self.q_xt(x_cat, move_chance)
                 elif impute_condition == "x_0":
                     z_norm_known = x_num
-                    z_cat_known = x_cat
-                
+
+                # Inject true condition values into z_cat so the denoiser always sees them.
+                # cat_mask=0 means condition (known), cat_mask=1 means unknown (to generate).
+                # This prevents the condition column from being masked out during denoising,
+                # which was causing all categorical columns to be generated unconditionally.
+                z_cat_for_denoising = (1 - cat_mask) * x_cat + cat_mask * z_cat
+
                 # Get unknown by Reverse Step
                 # Temporarily override weights
                 original_w_num, original_w_cat = self.w_num, self.w_cat
                 self.w_num, self.w_cat = current_w_num, current_w_cat
 
                 z_norm_unknown, z_cat_unknown, q_xs = self.edm_update(
-                    z_norm, z_cat, i, 
+                    z_norm, z_cat_for_denoising, i,
                     t[i], t[i-1] if i > 0 else None, t_hat[i],
-                    sigma_num_cur[i], sigma_num_next[i], sigma_num_hat[i], 
+                    sigma_num_cur[i], sigma_num_next[i], sigma_num_hat[i],
                     sigma_cat_cur[i], sigma_cat_next[i], sigma_cat_hat[i],
+                    cat_temperature=cat_temperature,
                 )
 
                 # Restore weights
                 self.w_num, self.w_cat = original_w_num, original_w_cat
 
+                # Post-blend: condition column stays at true x_cat value, unknowns from model.
                 z_norm = (1 - num_mask)  * z_norm_known + num_mask * z_norm_unknown
-                z_cat = (1 - cat_mask) * z_cat_known + cat_mask * z_cat_unknown
+                z_cat = (1 - cat_mask) * x_cat + cat_mask * z_cat_unknown
 
                 # Resample x_t from x_{t-1} by Foward Step
                 if u < resample_rounds-1:
