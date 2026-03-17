@@ -44,11 +44,14 @@ def main(args):
         os.makedirs(data_dir, exist_ok=True)
         df = pd.read_csv(args.data_csv)
         
-        # Simple heuristic: last column is target, others are inferred
-        target_col = df.columns[-1]
+        # Prefer an explicit framework target; fall back to the last column for
+        # older call sites that do not provide one.
+        target_col = args.label_col or df.columns[-1]
+        if target_col not in df.columns:
+            raise ValueError(f"Target column '{target_col}' not found in {args.data_csv}")
         cat_cols = []
         num_cols = []
-        for col in df.columns[:-1]:
+        for col in [c for c in df.columns if c != target_col]:
             if df[col].dtype == 'object' or df[col].nunique() < 15:
                 cat_cols.append(col)
             else:
@@ -64,9 +67,18 @@ def main(args):
             
         X_num_train = df[num_cols].to_numpy().astype(np.float32) if num_cols else np.zeros((len(df), 0), dtype=np.float32)
         
-        # Target
-        target_encoder = OrdinalEncoder()
-        y_train = target_encoder.fit_transform(df[[target_col]]).flatten().astype(np.int64)
+        # Match TabDiff's classification/regression storage layout for the target.
+        target_series = df[target_col]
+        is_classification_target = (
+            pd.api.types.is_bool_dtype(target_series)
+            or pd.api.types.is_object_dtype(target_series)
+            or target_series.nunique(dropna=False) < 20
+        )
+        if is_classification_target:
+            target_encoder = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+            y_train = target_encoder.fit_transform(df[[target_col]]).flatten().astype(np.int64)
+        else:
+            y_train = pd.to_numeric(target_series, errors='raise').to_numpy(dtype=np.float32)
         
         np.save(f'{data_dir}/X_num_train.npy', X_num_train)
         np.save(f'{data_dir}/X_cat_train.npy', X_cat_train)
@@ -102,7 +114,13 @@ def main(args):
                 
         info = {
             "name": dataname,
-            "task_type": "binclass" if df[target_col].nunique() == 2 else "multiclass",
+            "task_type": (
+                "binclass"
+                if is_classification_target and df[target_col].nunique() == 2
+                else "multiclass"
+                if is_classification_target
+                else "regression"
+            ),
             "header": 0,
             "column_names": col_names,
             "num_col_idx": num_col_idx,
@@ -119,9 +137,20 @@ def main(args):
             "inverse_idx_mapping": {str(i): i for i in range(len(col_names))},
             "idx_name_mapping": {str(i): name for i, name in enumerate(col_names)},
             "metadata": {
-                "columns": {str(i): {"sdtype": "numerical" if i in num_col_idx else "categorical"} for i in range(len(col_names))}
+                "columns": {
+                    str(i): {
+                        "sdtype": (
+                            "numerical"
+                            if i in num_col_idx or (not is_classification_target and i in target_col_idx)
+                            else "categorical"
+                        )
+                    }
+                    for i in range(len(col_names))
+                }
             }
         }
+        if is_classification_target:
+            info["cat_encoders"][target_col] = target_encoder.categories_[0].tolist()
         with open(info_path, 'w') as f:
             json.dump(info, f, indent=4)
         print(f"Dynamically generated {dataname} from {args.data_csv}")
@@ -427,6 +456,7 @@ if __name__ == '__main__':
     parser.add_argument('--stochastic_start_ratio', type=float, default=1.0, help='Ratio of time steps to start guidance. 0.0 means stochastic from start.')
     parser.add_argument('--s_churn', type=float, default=0, help='Stochasticity strength (churn).')
     parser.add_argument('--privacy_noise_scale', type=float, default=0.0, help='Scale of noise injected at midpoint.')
+    parser.add_argument('--label-col', type=str, default=None, help='Explicit target column for dynamic CSV datasets.')
 
     args = parser.parse_args()
 
