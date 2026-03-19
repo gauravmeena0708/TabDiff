@@ -456,7 +456,7 @@ if __name__ == '__main__':
     parser.add_argument('--stochastic_start_ratio', type=float, default=1.0, help='Ratio of time steps to start guidance. 0.0 means stochastic from start.')
     parser.add_argument('--s_churn', type=float, default=0, help='Stochasticity strength (churn).')
     parser.add_argument('--privacy_noise_scale', type=float, default=0.0, help='Scale of noise injected at midpoint.')
-    parser.add_argument('--label-col', type=str, default=None, help='Explicit target column for dynamic CSV datasets.')
+    parser.add_argument('--label-col', '--label_col', dest='label_col', type=str, default=None, help='Explicit target column for dynamic CSV datasets.')
 
     args = parser.parse_args()
 

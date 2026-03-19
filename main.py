@@ -8,6 +8,7 @@ if __name__ == '__main__':
     # General configs
     parser.add_argument('--dataname', type=str, default='adult', help='Name dataset, one of those in data/ dir')
     parser.add_argument('--data-csv', type=str, default=None, help='Path to dataset CSV to dynamically process into dataname')
+    parser.add_argument('--label-col', '--label_col', dest='label_col', type=str, default=None, help='Target column for dynamic dataset processing')
     parser.add_argument('--mode', type=str, default='train', help='train or test')
     parser.add_argument('--method', type=str, default='tabdiff', help='Currently we only release our model TabDiff. Baselines will be released soon.')
     parser.add_argument('--gpu', type=int, default=0, help='GPU index')
