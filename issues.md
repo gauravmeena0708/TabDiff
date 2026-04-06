@@ -7,7 +7,7 @@ The script `compare_privacy.py` contains a hardcoded absolute path to an externa
 ```python
 SD_EVAL_ROOT = "/mnt/c/Users/gaura/Documents/GitHub/sd_eval"
 ```
-This will cause immediate failures on any other system. Furthermore, many configuration files in `data/Info/` (e.g., `shoppers.json`, `adult.json`, `beijing_dcr.json`) point to data paths outside the repository (`../../data/processed/` or `../../data/gold/`). Since `download_dataset.py` does not populate these external directories, the data pipeline will fail for new users.
+This will cause immediate failures on any other system. Furthermore, many configuration files in `data/Info/` (e.g., `shoppers.json`, `adult.json`, `beijing_dcr.json`) point to data paths outside the repository (`../../data/processed/` or `../../data/processed/`). Since `download_dataset.py` does not populate these external directories, the data pipeline will fail for new users.
 
 ## 2. Brittle Checkpoint Selection
 In `tabdiff/main.py`, the logic for loading checkpoints has been changed to a brittle pattern:

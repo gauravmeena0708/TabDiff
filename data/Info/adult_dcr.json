@@ -41,9 +41,9 @@
         14
     ],
     "file_type": "csv",
-    "data_path": "../../data/gold/adult/train.csv",
+    "data_path": "../../data/processed/adult/train.csv",
     "val_path": null,
-    "test_path": "../../data/gold/adult/test.csv",
+    "test_path": "../../data/processed/adult/test.csv",
     "column_info": {
         "age": "float",
         "workclass": "str",

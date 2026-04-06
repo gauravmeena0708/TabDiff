@@ -21,8 +21,8 @@
         4
     ],
     "file_type": "csv",
-    "data_path": "../../data/gold/beijing/train.csv",
-    "test_path": "../../data/gold/beijing/test.csv",
+    "data_path": "../../data/processed/beijing/train.csv",
+    "test_path": "../../data/processed/beijing/test.csv",
     "header": 0,
     "val_path": null,
     "raw_data_path": "data/beijing_dcr/PRSA_data_2010.1.1-2014.12.31.csv"
