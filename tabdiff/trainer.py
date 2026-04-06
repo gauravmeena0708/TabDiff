@@ -663,14 +663,39 @@ def split_num_cat_target(syn_data, info, num_inverse, int_inverse, cat_inverse):
     syn_num = int_inverse(syn_num).astype(np.float32)
     syn_cat = cat_inverse(syn_cat)
 
+    if 'cat_encoders' in info:
+        cat_encoders = info['cat_encoders']
+        for i, col_idx in enumerate(cat_col_idx):
+            col_name = info['idx_name_mapping'][str(col_idx)]
+            if col_name in cat_encoders:
+                labels = cat_encoders[col_name]
+                # Convert indices to labels. Use indices as ints, handle potential OOR values.
+                # syn_cat is usually a numpy array here.
+                indices = syn_cat[:, i].astype(int)
+                # Clip indices to valid range [0, len(labels)-1] to prevent crashes
+                indices = np.clip(indices, 0, len(labels) - 1)
+                syn_cat = syn_cat.astype(object) # allow string storage
+                for j, idx in enumerate(indices):
+                    syn_cat[j, i] = labels[idx]
 
     if info['task_type'] == 'regression':
         syn_target = syn_num[:, :len(target_col_idx)]
         syn_num = syn_num[:, len(target_col_idx):]
     
     else:
-        print(syn_cat.shape)
         syn_target = syn_cat[:, :len(target_col_idx)]
+        
+        # New: Target column might also need decoding if it's categorical
+        if 'cat_encoders' in info:
+            target_col_name = info['idx_name_mapping'][str(target_col_idx[0])]
+            if target_col_name in info['cat_encoders']:
+                labels = info['cat_encoders'][target_col_name]
+                indices = syn_target[:, 0].astype(int)
+                indices = np.clip(indices, 0, len(labels) - 1)
+                syn_target = syn_target.astype(object)
+                for j, idx in enumerate(indices):
+                    syn_target[j, 0] = labels[idx]
+
         syn_cat = syn_cat[:, len(target_col_idx):]
 
     return syn_num, syn_cat, syn_target
