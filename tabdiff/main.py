@@ -238,6 +238,11 @@ def main(args):
         raw_config['train']['main']['batch_size'] = 4096
         raw_config['sample']['batch_size'] = 10000
 
+    if getattr(args, 'steps', None) is not None:
+        raw_config['train']['main']['steps'] = args.steps
+    if getattr(args, 'check_val_every', None) is not None:
+        raw_config['train']['main']['check_val_every'] = args.check_val_every
+
     if args.batch_size is not None:
         raw_config['train']['main']['batch_size'] = args.batch_size
     if args.burn_in_epochs is not None:

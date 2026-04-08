@@ -44,6 +44,8 @@ if __name__ == '__main__':
     parser.add_argument('--y_only_model_path', type=str, default=None, help="Path to the y_only model checkpoint that will be used as the unconditional guidance model")
     parser.add_argument('--w_num', type=float, default=0.6)
     parser.add_argument('--w_cat', type=float, default=0.6)
+    parser.add_argument('--steps', type=int, default=None, help='Override training steps (e.g. 300 for fast smoke tests)')
+    parser.add_argument('--check_val_every', type=int, default=None, help='Override validation/checkpoint frequency')
 
     # Privacy arguments (Non-DP)
     parser.add_argument('--stochastic_start_ratio', type=float, default=1.0, help='Ratio of time steps to start guidance. 0.0 means stochastic from start.')
