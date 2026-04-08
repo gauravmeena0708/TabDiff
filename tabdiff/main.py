@@ -463,6 +463,11 @@ if __name__ == '__main__':
     parser.add_argument('--privacy_noise_scale', type=float, default=0.0, help='Scale of noise injected at midpoint.')
     parser.add_argument('--label-col', '--label_col', dest='label_col', type=str, default=None, help='Explicit target column for dynamic CSV datasets.')
 
+    # Fast-training / dynamic-data flags (patched branch)
+    parser.add_argument('--steps', type=int, default=None, help='Override training steps (e.g. 300 for fast smoke tests).')
+    parser.add_argument('--check_val_every', type=int, default=None, help='Override validation interval.')
+    parser.add_argument('--data-csv', dest='data_csv', type=str, default=None, help='Path to training CSV for dynamic dataset loading.')
+
     args = parser.parse_args()
 
     # check cuda
