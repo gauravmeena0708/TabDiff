@@ -30,7 +30,10 @@ def load_model_and_info(dataname, ckpt_path=None, device='cuda'):
     X_num_train = np.load(f'{data_dir}/X_num_train.npy', allow_pickle=True)
     X_cat_train = np.load(f'{data_dir}/X_cat_train.npy', allow_pickle=True)
 
-    # Get dimensions
+    # Get dimensions. For regression, training concatenates the target into the
+    # numerical block, so the saved config is the source of truth for the model
+    # width. Using raw X_num_train.shape[1] undercounts by one and breaks
+    # schedule loading for datasets like Beijing.
     d_numerical = X_num_train.shape[1]
     # Find checkpoint if not provided
     if ckpt_path is None:
@@ -172,6 +175,9 @@ def load_model_and_info(dataname, ckpt_path=None, device='cuda'):
     model_params = config['unimodmlp_params']
     diffusion_params = config['diffusion_params']
     edm_params = diffusion_params['edm_params']
+
+    # Use dimensions from the saved config so inference matches the checkpoint.
+    d_numerical = model_params['d_numerical']
 
     # Use categories from the config (includes target column)
     categories_with_mask = np.array(model_params['categories'])
