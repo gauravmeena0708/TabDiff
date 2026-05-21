@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adult TabDiff Method Significance Interpretation</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --text: #1f2933;
+      --muted: #5f6c7b;
+      --line: #d9e2ec;
+      --head: #eef3f8;
+      --accent: #0b6bcb;
+      --good: #0f766e;
+      --warn: #9a5b00;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    header {
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.8rem, 3vw, 2.6rem);
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 32px 0 12px;
+      font-size: 1.25rem;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 22px 0 8px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    .meta,
+    .note {
+      color: var(--muted);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin: 20px 0 28px;
+    }
+
+    .summary-item {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .summary-item strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--accent);
+    }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 980px;
+      font-size: 0.92rem;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: var(--head);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .metric {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.9em;
+      white-space: nowrap;
+    }
+
+    .pairwise {
+      min-width: 300px;
+    }
+
+    ul {
+      margin: 8px 0 0;
+      padding-left: 22px;
+    }
+
+    li {
+      margin: 4px 0;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .callout {
+      border-left: 4px solid var(--good);
+      padding: 12px 14px;
+      background: #eefaf8;
+      margin-top: 12px;
+    }
+
+    .caveat {
+      border-left: 4px solid var(--warn);
+      padding: 12px 14px;
+      background: #fff8eb;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Adult TabDiff Method Significance Interpretation</h1>
+      <p class="meta">Experiment output: <span class="metric">experiments/adult_tabdiff_method_significance</span></p>
+      <p class="meta">Compared methods: <span class="metric">none</span>, <span class="metric">stochastic</span>, <span class="metric">midpoint</span>. Significance rule: global Friedman p &lt; 0.05, with paired Wilcoxon/Holm checks for pairwise differences.</p>
+    </header>
+
+    <section class="summary">
+      <div class="summary-item">
+        <strong>Main inference</strong>
+        The methods are not behaviorally identical.
+      </div>
+      <div class="summary-item">
+        <strong>Best overall pattern</strong>
+        <span class="metric">stochastic</span> most often improves fidelity and distribution similarity.
+      </div>
+      <div class="summary-item">
+        <strong>No clear utility gain</strong>
+        <span class="metric">mle</span>, <span class="metric">tstr</span>, and <span class="metric">c2st</span> were not globally significant.
+      </div>
+      <div class="summary-item">
+        <strong>No broad privacy change</strong>
+        Most csdeval privacy metrics were not globally significant.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Interpretation</h2>
+      <p>The variation mainly changes fidelity and distribution-shape metrics. It does not show strong evidence of changing downstream utility, constraint satisfaction, or most privacy metrics in this run.</p>
+      <p><span class="metric">stochastic</span> is the only method that consistently separates from the other two. It is better on TabDiff density metrics and several csdeval fidelity metrics, especially <span class="metric">wasserstein</span>, <span class="metric">conditional_distribution_fidelity</span>, <span class="metric">marginal_distortion</span>, and <span class="metric">entropy_ratio</span>.</p>
+      <p><span class="metric">midpoint</span> does not show a clear advantage. It is usually close to <span class="metric">none</span>, and often significantly worse than <span class="metric">stochastic</span>.</p>
+      <div class="callout">
+        Practical conclusion: use <span class="metric">stochastic</span> if the goal is better conditional distribution fidelity. Do not claim utility or privacy improvement from this run alone.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What The Better Fidelity Metrics Mean</h2>
+      <h3><span class="metric">csdeval/wasserstein</span></h3>
+      <p>This measures how close the synthetic and real value distributions are. A better score means generated samples are closer to the real data in terms of feature values. In this run, <span class="metric">stochastic</span> was best: 0.959184 versus 0.934912 for <span class="metric">none</span> and 0.928617 for <span class="metric">midpoint</span>.</p>
+
+      <h3><span class="metric">csdeval/conditional_distribution_fidelity</span></h3>
+      <p>This checks whether the distribution inside the requested condition matches the real conditional slice. For example, among rows where <span class="metric">education=11th</span>, the remaining fields should look like real <span class="metric">education=11th</span> rows. <span class="metric">stochastic</span> was best: 0.982840.</p>
+
+      <h3><span class="metric">csdeval/marginal_distortion</span></h3>
+      <p>This measures distortion in individual column distributions. A better score means columns such as age, workclass, occupation, income, and hours-per-week are less distorted relative to real data. The stochastic gain is statistically stable but small in absolute size.</p>
+
+      <h3><span class="metric">csdeval/entropy_ratio</span></h3>
+      <p>This reflects diversity or spread. A better entropy ratio means the synthetic data is less collapsed and has diversity closer to the real data. <span class="metric">stochastic</span> again had the best average value.</p>
+    </section>
+
+    <section class="section">
+      <h2>Significant Metrics</h2>
+      <p class="note">Method values are means. Pairwise text shows only Holm-significant differences.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>none</th>
+              <th>stochastic</th>
+              <th>midpoint</th>
+              <th>Global p</th>
+              <th>Significant pairwise differences</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="metric">csdeval/marginal_distortion</td>
+              <td class="num">0.808106</td>
+              <td class="num">0.809280</td>
+              <td class="num">0.808419</td>
+              <td class="num">7.31e-15</td>
+              <td class="pairwise">stochastic &gt; none; midpoint &gt; none; stochastic &gt; midpoint</td>
+            </tr>
+            <tr>
+              <td class="metric">csdeval/wasserstein</td>
+              <td class="num">0.934912</td>
+              <td class="num">0.959184</td>
+              <td class="num">0.928617</td>
+              <td class="num">5.87e-14</td>
+              <td class="pairwise">stochastic &gt; none; stochastic &gt; midpoint</td>
+            </tr>
+            <tr>
+              <td class="metric">csdeval/conditional_distribution_fidelity</td>
+              <td class="num">0.973134</td>
+              <td class="num">0.982840</td>
+              <td class="num">0.970614</td>
+              <td class="num">1.12e-13</td>
+              <td class="pairwise">stochastic &gt; none; stochastic &gt; midpoint</td>
+            </tr>
+            <tr>
+              <td class="metric">density/Shape</td>
+              <td class="num">0.829694</td>
+              <td class="num">0.830577</td>
+              <td class="num">0.829840</td>
+              <td class="num">5.13e-12</td>
+              <td class="pairwise">stochastic &gt; none; stochastic &gt; midpoint</td>
+            </tr>
+            <tr>
+              <td class="metric">density/Overall</td>
+              <td class="num">0.751170</td>
+              <td class="num">0.753970</td>
+              <td class="num">0.751153</td>
+              <td class="num">2.03e-10</td>
+              <td class="pairwise">stochastic &gt; none; stochastic &gt; midpoint</td>
+            </tr>
+            <tr>
+              <td class="metric">density/Trend</td>
+              <td class="num">0.672646</td>
+              <td class="num">0.677363</td>
+              <td class="num">0.672467</td>
+              <td class="num">2.64e-08</td>
+              <td class="pairwise">stochastic &gt; none; stochastic &gt; midpoint</td>
+            </tr>
+            <tr>
+              <td class="metric">csdeval/conditional_alpha_precision</td>
+              <td class="num">0.942721</td>
+              <td class="num">0.939309</td>
+              <td class="num">0.942607</td>
+              <td class="num">8.41e-04</td>
+              <td class="pairwise">none &gt; stochastic; midpoint &gt; stochastic</td>
+            </tr>
+            <tr>
+              <td class="metric">csdeval/entropy_ratio</td>
+              <td class="num">0.983331</td>
+              <td class="num">0.984859</td>
+              <td class="num">0.983410</td>
+              <td class="num">3.89e-03</td>
+              <td class="pairwise">stochastic &gt; none; stochastic &gt; midpoint</td>
+            </tr>
+            <tr>
+              <td class="metric">csdeval/mixed_pairwise_association_error</td>
+              <td class="num">0.972869</td>
+              <td class="num">0.973134</td>
+              <td class="num">0.972552</td>
+              <td class="num">1.06e-02</td>
+              <td class="pairwise">stochastic &gt; none; none &gt; midpoint; stochastic &gt; midpoint</td>
+            </tr>
+            <tr>
+              <td class="metric">csdeval/joint_alpha_precision</td>
+              <td class="num">0.144980</td>
+              <td class="num">0.145459</td>
+              <td class="num">0.144372</td>
+              <td class="num">1.50e-02</td>
+              <td class="pairwise">stochastic &gt; midpoint</td>
+            </tr>
+            <tr>
+              <td class="metric">csdeval/energy_distance</td>
+              <td class="num">0.999232</td>
+              <td class="num">0.999226</td>
+              <td class="num">0.999241</td>
+              <td class="num">2.60e-02</td>
+              <td class="pairwise">No Holm-significant pairwise difference</td>
+            </tr>
+            <tr>
+              <td class="metric">csdeval/inference</td>
+              <td class="num">0.269262</td>
+              <td class="num">0.267162</td>
+              <td class="num">0.268715</td>
+              <td class="num">4.01e-02</td>
+              <td class="pairwise">none &gt; stochastic</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Non-Significant Metrics</h2>
+      <div class="two-col">
+        <div>
+          <h3>TabDiff</h3>
+          <ul>
+            <li><span class="metric">c2st</span>, p = 0.344</li>
+            <li><span class="metric">dcr</span>, p = 1.000</li>
+            <li><span class="metric">mle</span>, p = 0.890</li>
+          </ul>
+        </div>
+        <div>
+          <h3>csdeval</h3>
+          <ul>
+            <li><span class="metric">embedding_alpha_precision</span>, p = 0.488</li>
+            <li><span class="metric">alpha_precision</span>, p = 1.000</li>
+            <li><span class="metric">embedding_beta_recall</span>, p = 0.442</li>
+            <li><span class="metric">beta_recall</span>, p = 0.648</li>
+            <li><span class="metric">joint_beta_recall</span>, p = 0.226</li>
+            <li><span class="metric">density_coverage</span>, p = 0.483</li>
+            <li><span class="metric">mode_coverage</span>, p = 0.247</li>
+            <li><span class="metric">low_order_density_error</span>, p = 0.936</li>
+            <li><span class="metric">js_divergence</span>, p = 0.936</li>
+            <li><span class="metric">k_way_marginal_query_error</span>, p = 0.819</li>
+            <li><span class="metric">c2st_fidelity</span>, p = 1.000</li>
+            <li><span class="metric">tv_distance</span>, p = 0.142</li>
+            <li><span class="metric">within_condition_unique_rate</span>, p = 0.541</li>
+            <li><span class="metric">tstr</span>, p = 0.763</li>
+            <li><span class="metric">olap_relative_error</span>, p = 0.890</li>
+            <li><span class="metric">dcr</span>, p = 0.219</li>
+            <li><span class="metric">mia</span>, p = 0.127</li>
+            <li><span class="metric">nndr</span>, p = 0.203</li>
+            <li><span class="metric">singling_out</span>, p = 0.0992</li>
+            <li><span class="metric">linkability</span>, p = 0.508</li>
+            <li><span class="metric">constraint_satisfaction_ratio</span>, p = 1.000</li>
+          </ul>
+        </div>
+      </div>
+      <div class="caveat">
+        The local TabDiff <span class="metric">dcr</span> is not very informative in this checkout because the local TabDiff train/test evaluation CSVs are identical. The csdeval privacy metrics are more useful for interpretation here.
+      </div>
+    </section>
+  </main>
+</body>
+</html>

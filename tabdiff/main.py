@@ -409,11 +409,7 @@ def main(args):
                 privacy_noise_scale=args.privacy_noise_scale
             )
         else:
-            trainer.test(
-                stochastic_start_ratio=args.stochastic_start_ratio,
-                s_churn=args.s_churn,
-                privacy_noise_scale=args.privacy_noise_scale
-            )
+            trainer.test()
     else:
         ## Save config
         config_save_path = raw_config['model_save_path']

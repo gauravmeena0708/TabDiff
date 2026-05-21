@@ -613,7 +613,9 @@ class Trainer:
                 # Sample imputed tables
                 syn_data = self.diffusion.sample_impute(
                     x_num_test, x_cat_test, num_mask_idx, cat_mask_idx, resample_rounds, impute_condition, w_num, w_cat,
-                    
+                    stochastic_start_ratio=stochastic_start_ratio,
+                    s_churn=s_churn,
+                    privacy_noise_scale=privacy_noise_scale,
                 )
                 print(f"Shape of the imputed sample = {syn_data.shape}")
 
