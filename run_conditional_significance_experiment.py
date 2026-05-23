@@ -130,6 +130,51 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--w-num", type=float, default=0.0, help="Numerical guidance weight.")
     parser.add_argument("--w-cat", type=float, default=0.0, help="Categorical guidance weight.")
     parser.add_argument("--resample-rounds", type=int, default=1, help="Imputation resampling rounds.")
+    parser.add_argument(
+        "--stochastic-start-ratio",
+        type=float,
+        default=None,
+        help=(
+            "Optional override for stochastic_start_ratio passed to generate_conditional.py. "
+            "When omitted, generate_conditional.py defaults are used."
+        ),
+    )
+    parser.add_argument(
+        "--stochastic-s-churn",
+        type=float,
+        default=None,
+        help=(
+            "Optional override for s_churn in the stochastic method. "
+            "When omitted, generate_conditional.py defaults are used."
+        ),
+    )
+    parser.add_argument(
+        "--stochastic-cat-noise-scale",
+        type=float,
+        default=None,
+        help=(
+            "Optional override for cat_noise_scale in the stochastic method. "
+            "When omitted, generate_conditional.py defaults are used."
+        ),
+    )
+    parser.add_argument(
+        "--midpoint-privacy-noise-scale",
+        type=float,
+        default=None,
+        help=(
+            "Optional override for privacy_noise_scale in the midpoint method. "
+            "When omitted, generate_conditional.py defaults are used."
+        ),
+    )
+    parser.add_argument(
+        "--midpoint-cat-noise-scale",
+        type=float,
+        default=None,
+        help=(
+            "Optional override for cat_noise_scale in the midpoint method. "
+            "When omitted, generate_conditional.py defaults are used."
+        ),
+    )
     parser.add_argument("--real-data-path", default=None, help="Override real CSV path.")
     parser.add_argument("--test-data-path", default=None, help="Override test CSV path.")
     parser.add_argument("--val-data-path", default=None, help="Override validation CSV path.")
@@ -560,6 +605,11 @@ def generate_samples(
         ckpt_path=args.ckpt_path,
         device=device,
         privacy_method=method,
+        stochastic_start_ratio=args.stochastic_start_ratio,
+        stochastic_s_churn=args.stochastic_s_churn,
+        stochastic_cat_noise_scale=args.stochastic_cat_noise_scale,
+        midpoint_privacy_noise_scale=args.midpoint_privacy_noise_scale,
+        midpoint_cat_noise_scale=args.midpoint_cat_noise_scale,
     )
     syn_df.to_csv(sample_path, index=False)
     return syn_df

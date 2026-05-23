@@ -344,7 +344,12 @@ def generate_conditional_samples(
     resample_rounds=1,
     ckpt_path=None,
     device='cuda',
-    privacy_method='stochastic'  # 'none', 'stochastic', or 'midpoint'
+    privacy_method='none',  # 'none', 'stochastic', or 'midpoint'
+    stochastic_start_ratio=None,
+    stochastic_s_churn=None,
+    stochastic_cat_noise_scale=None,
+    midpoint_privacy_noise_scale=None,
+    midpoint_cat_noise_scale=None,
 ):
     """
     Generate synthetic samples with a specific column fixed to a value.
@@ -358,6 +363,12 @@ def generate_conditional_samples(
         w_cat: Guidance weight for categorical columns
         resample_rounds: Number of resampling rounds per timestep
         device: Device to use
+        privacy_method: Sampling variant: 'none', 'stochastic', or 'midpoint'
+        stochastic_start_ratio: Optional override for guidance start ratio
+        stochastic_s_churn: Optional override for stochastic s_churn
+        stochastic_cat_noise_scale: Optional override for stochastic categorical temperature
+        midpoint_privacy_noise_scale: Optional override for midpoint numeric noise
+        midpoint_cat_noise_scale: Optional override for midpoint categorical temperature
     """
 
     print(f"Loading model for {dataname}...")
@@ -443,22 +454,49 @@ def generate_conditional_samples(
     print(f"Numerical columns to generate: {num_mask_idx}")
     print(f"Categorical columns to generate: {cat_mask_idx}")
 
-    # Configure privacy method correctly for valid diffusion math
+    # Configure privacy method correctly for valid diffusion math. Optional
+    # overrides keep experiments reproducible without changing source constants.
+    default_start_ratio = 1.0
+    resolved_start_ratio = (
+        default_start_ratio if stochastic_start_ratio is None else stochastic_start_ratio
+    )
+    cat_noise_scale = 0.0
     if privacy_method == 'stochastic':
         impute_condition = 'x_t'     # Start from pure noise
-        stochastic_start_ratio = 1.0 # Keep CFG guidance ON
-        s_churn = 1.0                # Enable stochastic noise injection
+        stochastic_start_ratio = resolved_start_ratio # Keep CFG guidance ON
+        s_churn = 40.0 if stochastic_s_churn is None else stochastic_s_churn
         privacy_noise_scale = 0.0
+        cat_noise_scale = (
+            0.2 if stochastic_cat_noise_scale is None else stochastic_cat_noise_scale
+        )
     elif privacy_method == 'midpoint':
         impute_condition = 'x_t'     # Start from pure noise
-        stochastic_start_ratio = 1.0 # Keep CFG guidance ON
+        stochastic_start_ratio = resolved_start_ratio # Keep CFG guidance ON
         s_churn = 0.0                # Disable standard stochasticity
-        privacy_noise_scale = 0.2    # Inject manual noise at midpoint
-    else:  # 'none' (Baseline deterministic)
+        privacy_noise_scale = (
+            0.2 if midpoint_privacy_noise_scale is None else midpoint_privacy_noise_scale
+        )
+        cat_noise_scale = (
+            0.2 if midpoint_cat_noise_scale is None else midpoint_cat_noise_scale
+        )
+    elif privacy_method == 'none':  # Baseline deterministic
         impute_condition = 'x_t'     # Start from pure noise
-        stochastic_start_ratio = 1.0 # Keep CFG guidance ON
+        stochastic_start_ratio = resolved_start_ratio # Keep CFG guidance ON
         s_churn = 0.0                # Purely deterministic ODE sampling
         privacy_noise_scale = 0.0
+        cat_noise_scale = 0.0
+    else:
+        raise ValueError(
+            f"Unsupported privacy_method={privacy_method!r}; expected one of "
+            "'none', 'stochastic', or 'midpoint'."
+        )
+
+    print(
+        "\nPrivacy parameters: "
+        f"method={privacy_method}, start_ratio={stochastic_start_ratio}, "
+        f"s_churn={s_churn}, privacy_noise_scale={privacy_noise_scale}, "
+        f"cat_noise_scale={cat_noise_scale}"
+    )
     
     # Generate samples using the impute method
     with torch.no_grad():
@@ -471,7 +509,8 @@ def generate_conditional_samples(
             w_cat=w_cat,
             stochastic_start_ratio=stochastic_start_ratio,
             s_churn=s_churn,
-            privacy_noise_scale=privacy_noise_scale
+            privacy_noise_scale=privacy_noise_scale,
+            cat_noise_scale=cat_noise_scale
         )
 
     print(f"\nGenerated samples shape: {syn_data.shape}")
@@ -549,8 +588,18 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default='conditional_samples', help='Output directory')
     parser.add_argument('--ckpt_path', type=str, default=None, help='Path to model checkpoint (optional)')
     parser.add_argument('--device', type=str, default='cuda', help='Device (cuda or cpu)')
-    parser.add_argument('--privacy_method', type=str, default='stochastic', choices=['none', 'stochastic', 'midpoint'],
+    parser.add_argument('--privacy_method', type=str, default='none', choices=['none', 'stochastic', 'midpoint'],
                         help='Privacy method: none (baseline), stochastic (best privacy), midpoint (legacy hack)')
+    parser.add_argument('--stochastic_start_ratio', type=float, default=None,
+                        help='Optional override for stochastic_start_ratio used by all privacy methods')
+    parser.add_argument('--stochastic_s_churn', type=float, default=None,
+                        help='Optional override for s_churn when privacy_method=stochastic')
+    parser.add_argument('--stochastic_cat_noise_scale', type=float, default=None,
+                        help='Optional override for cat_noise_scale when privacy_method=stochastic')
+    parser.add_argument('--midpoint_privacy_noise_scale', type=float, default=None,
+                        help='Optional override for privacy_noise_scale when privacy_method=midpoint')
+    parser.add_argument('--midpoint_cat_noise_scale', type=float, default=None,
+                        help='Optional override for cat_noise_scale when privacy_method=midpoint')
 
     args = parser.parse_args()
 
@@ -565,7 +614,12 @@ if __name__ == '__main__':
         resample_rounds=args.resample_rounds,
         ckpt_path=args.ckpt_path,
         device=args.device,
-        privacy_method=args.privacy_method
+        privacy_method=args.privacy_method,
+        stochastic_start_ratio=args.stochastic_start_ratio,
+        stochastic_s_churn=args.stochastic_s_churn,
+        stochastic_cat_noise_scale=args.stochastic_cat_noise_scale,
+        midpoint_privacy_noise_scale=args.midpoint_privacy_noise_scale,
+        midpoint_cat_noise_scale=args.midpoint_cat_noise_scale,
     )
 
     # Save results
