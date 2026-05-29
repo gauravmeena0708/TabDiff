@@ -17,3 +17,6 @@ tabdiff/result/
 conditional_samples/*
 *.log
 *.pt
+# sd_framework run outputs
+experiments/
+EXPERIMENTS_SUMMARY_*.md
