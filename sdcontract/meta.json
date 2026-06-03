@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "plugin": "tabdiff",
+  "version": "0.1.0",
+  "env": "diffutabgen",
+  "entrypoints": {
+    "train": ["python", "sdcontract/train"],
+    "generate": ["python", "sdcontract/generate"]
+  },
+  "methods": {
+    "tabdiff": { "variant": "none" },
+    "tabdiff-none": { "variant": "none" },
+    "tabdiff-stochastic": { "variant": "stochastic" },
+    "tabdiff-midpoint": { "variant": "midpoint" }
+  }
+}

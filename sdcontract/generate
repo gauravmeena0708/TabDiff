@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+"""tabdiff plugin `generate` endpoint: JSON request on stdin -> JSON result on stdout.
+
+Consumes a pre-trained `model_dir` (never retrains). The request's constraints
+(shared dialect) are round-tripped through `sdcontract_core` — parsed and
+re-serialized via `to_spec(..., "equality")` into TabDiff's native `col=val`
+form — which both proves the cross-env contract and rejects non-equality
+constraints (eq-only method). The `variant` injected by the proxy selects the
+noise/privacy mode (none / stochastic / midpoint). Contract discipline: one JSON
+object on stdout, logs on stderr.
+"""
+import json
+import logging
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+
+def main() -> int:
+    req = json.load(sys.stdin)
+    real_stdout = sys.stdout
+    sys.stdout = sys.stderr
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+    try:
+        from sdcontract_core.constraints import parse, to_spec
+        import _engine
+
+        # Round-trip the shared dialect into TabDiff's native col=val form;
+        # raises on a non-ROW/eq constraint (this method is equality-only).
+        native = [to_spec(parse(s), "equality") for s in req.get("constraints", [])]
+        privacy_mode = req.get("variant") or "none"
+        out_path = _engine.generate(req, native, privacy_mode)
+        result = {"ok": True, "output_csv": str(out_path), "message": ""}
+    except Exception as exc:
+        result = {"ok": False, "output_csv": None, "message": f"{type(exc).__name__}: {exc}"}
+    finally:
+        sys.stdout = real_stdout
+    print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

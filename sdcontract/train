@@ -1,0 +1,36 @@
+#!/usr/bin/env python
+"""tabdiff plugin `train` endpoint: JSON request on stdin -> JSON result on stdout.
+
+Trains the unconditional TabDiff model via its own CLI (constraints are applied
+later at generate time through REPAINT-style imputation) and writes
+`model_dir/meta.json`. Contract discipline: the single JSON result is the ONLY
+thing on stdout; logs + library/CLI chatter go to stderr.
+"""
+import json
+import logging
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+
+def main() -> int:
+    req = json.load(sys.stdin)
+    # Reserve stdout for the one JSON result; send everything else to stderr.
+    real_stdout = sys.stdout
+    sys.stdout = sys.stderr
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+    try:
+        import _engine
+        model_dir = _engine.train(req)
+        result = {"ok": True, "model_dir": str(model_dir), "message": ""}
+    except Exception as exc:  # report as a method failure, not a crash
+        result = {"ok": False, "model_dir": None, "message": f"{type(exc).__name__}: {exc}"}
+    finally:
+        sys.stdout = real_stdout
+    print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
