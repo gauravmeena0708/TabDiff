@@ -10,16 +10,6 @@
     "max_constraints": null,
     "requires_gpu": true
   },
-  "tabdiff-none": {
-    "kinds": ["row"],
-    "ops": ["eq"],
-    "aggs": [],
-    "column_types": ["numerical", "categorical"],
-    "supports_unconditional": true,
-    "supports_multi_constraint": true,
-    "max_constraints": null,
-    "requires_gpu": true
-  },
   "tabdiff-stochastic": {
     "kinds": ["row"],
     "ops": ["eq"],
