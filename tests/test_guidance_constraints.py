@@ -40,3 +40,18 @@ def test_fraction_targets_batch_satisfaction_rate():
     c = Fraction(idx=0, target=0.0, target_fraction=0.5, direction='greater', tau=0.01, scale=1.0)
     x = torch.tensor([[5.0], [5.0], [-5.0], [-5.0]])  # ~50% satisfy v>0
     assert c.loss(x).item() < 1e-3
+
+
+from tabdiff.guidance import CategoricalConstraint
+
+
+def test_categorical_constraint_fields():
+    c = CategoricalConstraint(col_pos=1, class_idx=2, scale=4.0, sign=1)
+    assert c.col_pos == 1 and c.class_idx == 2
+    assert c.scale == 4.0 and c.sign == 1
+
+
+def test_categorical_constraint_rejects_bad_sign():
+    import pytest
+    with pytest.raises(ValueError):
+        CategoricalConstraint(col_pos=0, class_idx=0, scale=1.0, sign=0)

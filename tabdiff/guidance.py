@@ -72,3 +72,15 @@ class Fraction(NumericConstraint):
         else:
             ind = torch.sigmoid((v - self.target) / self.tau)
         return (ind.mean() - self.target_fraction) ** 2
+
+
+# --- categorical constraints (bias logits[:, col_pos, class_idx]) ------------
+
+class CategoricalConstraint:
+    def __init__(self, col_pos, class_idx, scale=4.0, sign=1):
+        if sign not in (1, -1):
+            raise ValueError("sign must be +1 (equality) or -1 (not-equal)")
+        self.col_pos = int(col_pos)
+        self.class_idx = int(class_idx)
+        self.scale = float(scale)
+        self.sign = int(sign)
