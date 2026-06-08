@@ -294,7 +294,7 @@ def generate_guided(
     ckpt_path=None,
     device="cuda",
     num_inference_steps=None,
-    num_scale=0.1, cat_scale=4.0, mean_scale=0.1,
+    num_scale=0.5, cat_scale=4.0, mean_scale=0.1,
     backward_steps=10, backward_lr=1.0, guidance_schedule="none",
     cat_snap_final=False,
 ):

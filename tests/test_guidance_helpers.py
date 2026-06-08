@@ -20,6 +20,15 @@ def test_compute_numeric_delta_empty_is_zero():
     assert torch.allclose(delta, torch.zeros_like(denoised))
 
 
+def test_compute_numeric_delta_is_batch_size_independent():
+    # Per-row constraints must produce the same per-row delta regardless of N.
+    c = GreaterThan(idx=0, target=1.0, scale=0.1)
+    small = compute_numeric_delta(torch.zeros(4, 1), [c], m=5, lr=1.0)
+    large = compute_numeric_delta(torch.zeros(400, 1), [c], m=5, lr=1.0)
+    assert small[0, 0].item() > 0.0
+    assert torch.allclose(small[0, 0], large[0, 0], atol=1e-6)
+
+
 def test_apply_categorical_bias_boosts_target_logit():
     logits = torch.zeros(2, 3, 5)  # (bs, K=3 cols, K_max=5)
     c = CategoricalConstraint(col_pos=1, class_idx=2, scale=4.0, sign=1)

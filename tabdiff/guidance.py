@@ -22,19 +22,23 @@ class NumericConstraint:
         raise NotImplementedError
 
 
+# Per-row constraints use torch.sum (not mean) so each row's gradient is
+# independent of batch size N; otherwise the effective guidance strength scales
+# as num_scale/N and a fixed scale silently weakens for larger batches.
+
 class Equality(NumericConstraint):
     def loss(self, x):
-        return torch.mean((x[:, self.idx] - self.target) ** 2)
+        return torch.sum((x[:, self.idx] - self.target) ** 2)
 
 
 class GreaterThan(NumericConstraint):
     def loss(self, x):
-        return torch.mean(torch.relu(self.target - x[:, self.idx]))
+        return torch.sum(torch.relu(self.target - x[:, self.idx]))
 
 
 class LessThan(NumericConstraint):
     def loss(self, x):
-        return torch.mean(torch.relu(x[:, self.idx] - self.target))
+        return torch.sum(torch.relu(x[:, self.idx] - self.target))
 
 
 class NotEqual(NumericConstraint):
@@ -44,7 +48,7 @@ class NotEqual(NumericConstraint):
 
     def loss(self, x):
         dist = torch.abs(x[:, self.idx] - self.target)
-        return torch.mean(torch.relu(self.margin - dist))
+        return torch.sum(torch.relu(self.margin - dist))
 
 
 class Mean(NumericConstraint):
@@ -196,7 +200,7 @@ def _normalize_numeric(info, X_num_train, num_idx, raw_value, num_transform, int
 
 
 def parse_constraint_spec(spec, info, X_num_train, num_transform, int_transform,
-                          num_scale=0.1, cat_scale=4.0, mean_scale=0.1,
+                          num_scale=0.5, cat_scale=4.0, mean_scale=0.1,
                           not_equal_margin=0.1, fraction_tau=0.1, cat_classes=None):
     """Parse one constraint spec into a NumericConstraint or CategoricalConstraint.
 
