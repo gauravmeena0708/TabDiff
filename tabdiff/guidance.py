@@ -197,8 +197,13 @@ def _normalize_numeric(info, X_num_train, num_idx, raw_value, num_transform, int
 
 def parse_constraint_spec(spec, info, X_num_train, num_transform, int_transform,
                           num_scale=0.1, cat_scale=4.0, mean_scale=0.1,
-                          not_equal_margin=0.1, fraction_tau=0.1):
-    """Parse one constraint spec into a NumericConstraint or CategoricalConstraint."""
+                          not_equal_margin=0.1, fraction_tau=0.1, cat_classes=None):
+    """Parse one constraint spec into a NumericConstraint or CategoricalConstraint.
+
+    `cat_classes` (col_name -> list of class values) supplies the class list for
+    categorical columns absent from `info["cat_encoders"]` — notably the target
+    column, which TabDiff's info.json omits (mirrors get_category_encoding's
+    train.csv fallback)."""
     # @scale=N suffix
     per_spec_scale = None
     if '@scale=' in spec:
@@ -230,7 +235,12 @@ def parse_constraint_spec(spec, info, X_num_train, num_transform, int_transform,
         if op not in ('=', '!='):
             raise ValueError(f"Operator {op!r} is not valid on categorical column {col!r}")
         col_pos = _cat_col_pos(info, col_idx)
-        class_idx = _class_index(info["cat_encoders"][col], val)
+        classes = info.get("cat_encoders", {}).get(col)
+        if classes is None and cat_classes is not None:
+            classes = cat_classes.get(col)
+        if classes is None:
+            raise ValueError(f"No class list available for categorical column {col!r}")
+        class_idx = _class_index(classes, val)
         scale = per_spec_scale if per_spec_scale is not None else cat_scale
         sign = 1 if op == '=' else -1
         return CategoricalConstraint(col_pos, class_idx, scale=scale, sign=sign)

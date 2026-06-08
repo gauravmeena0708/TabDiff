@@ -319,10 +319,24 @@ def generate_guided(
         if num_inference_steps is not None:
             diffusion.num_timesteps = num_inference_steps
 
+        # Class lists for categorical/target columns missing from info["cat_encoders"]
+        # (the target column is omitted there) — fall back to train.csv unique values,
+        # mirroring generate_conditional.get_category_encoding.
+        cat_classes = {}
+        encoders = info.get("cat_encoders", {})
+        train_df = None
+        for ci in list(info.get("cat_col_idx", [])) + list(info.get("target_col_idx", [])):
+            cname = info["column_names"][ci]
+            if cname not in encoders:
+                if train_df is None:
+                    train_df = pd.read_csv(f"data/{dataname}/train.csv")
+                cat_classes[cname] = sorted(train_df[cname].unique().tolist())
+
         parsed = [
             parse_constraint_spec(
                 s, info, X_num_train, num_transform, int_transform,
                 num_scale=num_scale, cat_scale=cat_scale, mean_scale=mean_scale,
+                cat_classes=cat_classes,
             )
             for s in (constraint_specs or [])
         ]
@@ -548,10 +562,11 @@ def generate(req: dict, native_constraints: list[str], privacy_mode: str = "none
         s_churn, privacy_noise_scale, cat_noise_scale = 0.0, 0.0, 0.0
 
     constraints = []
-    for raw in native_constraints:
-        if "=" in raw:
-            k, v = raw.split("=", 1)
-            constraints.append((k.strip(), v.strip()))
+    if privacy_mode != "universal":
+        for raw in native_constraints:
+            if "=" in raw:
+                k, v = raw.split("=", 1)
+                constraints.append((k.strip(), v.strip()))
 
     # tabdiff-universal: full native dialect via guidance.
     if privacy_mode == "universal":
