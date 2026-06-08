@@ -5,6 +5,9 @@ import numpy as np
 from tabdiff.models.noise_schedule import *
 from tqdm import tqdm
 from itertools import chain
+from tabdiff.guidance import (
+    compute_numeric_delta, apply_categorical_bias, guidance_weight,
+)
 
 """
 “Our implementation of the continuous-time masked diffusion is inspired by https://arxiv.org/abs/2406.07524's implementation at [https://github.com/kuleshov-group/mdlm], with modifications to support data distributions that include categorical dimensions of different sizes.”
@@ -503,6 +506,187 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
                 x_num_next = x_num_hat + (sigma_num_next - sigma_num_hat) * (0.5 * d_cur + 0.5 * d_prime)
         
         return x_num_next, x_cat_next, q_xs
+
+    def _edm_update_guided(
+            self, x_num_cur, x_cat_cur, i,
+            t_cur, t_next, t_hat,
+            sigma_num_cur, sigma_num_next, sigma_num_hat,
+            sigma_cat_cur, sigma_cat_next, sigma_cat_hat,
+            cat_temperature=1.0,
+            num_constraints=(), cat_constraints=(),
+            backward_steps=10, backward_lr=1.0, w_t=1.0,
+        ):
+        """Copy of edm_update with two guidance hooks. CFG (y_only_model) path is
+        unsupported here: guidance + CFG interaction is untested (spec sec.10)."""
+        cfg = self.y_only_model is not None
+
+        b = x_num_cur.shape[0]
+        has_cat = len(self.num_classes) > 0
+
+        # Get x_num_hat by move towards the noise by a small step
+        x_num_hat = x_num_cur + (sigma_num_hat ** 2 - sigma_num_cur ** 2).sqrt() * S_noise * torch.randn_like(x_num_cur)
+        # Get x_cat_hat
+        move_chance = -torch.expm1(sigma_cat_cur - sigma_cat_hat)    # the incremental move change is 1 - alpha_t/alpha_s = 1 - exp(sigma_s - sigma_t)
+        x_cat_hat, _ = self.q_xt(x_cat_cur, move_chance) if has_cat else (x_cat_cur, x_cat_cur)
+
+        # Get predictions
+        x_cat_hat_oh = self.to_one_hot(x_cat_hat).to(x_num_hat.dtype) if has_cat else x_cat_hat
+        denoised, raw_logits = self._denoise_fn(
+            x_num_hat.float(), x_cat_hat_oh,
+            t_hat.squeeze().repeat(b), sigma=sigma_num_hat.unsqueeze(0).repeat(b,1)  # sigma accepts (bs, K_num)
+        )
+
+        # === HOOK A: numeric guidance on the x0 estimate ===
+        if num_constraints:
+            delta = compute_numeric_delta(denoised, list(num_constraints),
+                                          m=backward_steps, lr=backward_lr * w_t)
+            denoised = denoised + delta
+        # === end HOOK A ===
+
+        # Apply cfg updates, if is in cfg mode
+        is_bin_class = len(self.num_mask_idx) == 0
+        is_learnable = self.scheduler=="power_mean_per_column"
+        if cfg:
+            if not is_learnable:
+                sigma_cond = sigma_num_hat
+            else:
+                if is_bin_class:
+                    sigma_cond = (0.002 ** (1/7) + t_hat * (80 ** (1/7) - 0.002 ** (1/7))).pow(7)
+                else:
+                    sigma_cond = sigma_num_hat[self.num_mask_idx]
+            y_num_hat = x_num_hat.float()[:, self.num_mask_idx]
+            idx = list(chain(*[self.slices_for_classes_with_mask[i] for i in self.cat_mask_idx]))
+            y_cat_hat = x_cat_hat_oh[:,idx]
+            y_only_denoised, y_only_raw_logits = self.y_only_model(
+                y_num_hat,
+                y_cat_hat,
+                t_hat.squeeze().repeat(b), sigma=sigma_cond.unsqueeze(0).repeat(b,1)  # sigma accepts (bs, K_num)
+            )
+
+            denoised[:, self.num_mask_idx] *= 1 + self.w_num
+            denoised[:, self.num_mask_idx] -= self.w_num*y_only_denoised
+
+            mask_logit_idx = [self.slices_for_classes_with_mask[i] for i in self.cat_mask_idx]
+            mask_logit_idx = np.concatenate(mask_logit_idx) if len(mask_logit_idx)>0 else np.array([])
+
+            raw_logits[:, mask_logit_idx] *= 1 + self.w_cat
+            raw_logits[:, mask_logit_idx] -= self.w_cat*y_only_raw_logits
+
+        # Euler step
+        d_cur = (x_num_hat - denoised) / sigma_num_hat
+        x_num_next = x_num_hat + (sigma_num_next - sigma_num_hat) * d_cur
+
+        # Unmasking
+        x_cat_next = x_cat_cur
+        q_xs = torch.zeros_like(x_cat_cur).float()
+        if has_cat:
+            logits = self._subs_parameterization(raw_logits, x_cat_hat)
+            # === HOOK B: categorical guidance on the unmasking logits ===
+            if cat_constraints:
+                logits = apply_categorical_bias(logits, list(cat_constraints), w_t=w_t)
+            # === end HOOK B ===
+            alpha_t = torch.exp(-sigma_cat_hat).unsqueeze(0).repeat(b,1)
+            alpha_s = torch.exp(-sigma_cat_next).unsqueeze(0).repeat(b,1)
+            x_cat_next, q_xs = self._mdlm_update(logits, x_cat_hat, alpha_t, alpha_s, temperature=cat_temperature)
+
+        # Apply 2nd order correction.
+        if self.sampler_params['second_order_correction']:
+            if i > 0:
+                x_cat_hat_oh = self.to_one_hot(x_cat_hat).to(x_num_next.dtype) if has_cat else x_cat_hat
+                denoised, raw_logits = self._denoise_fn(
+                    x_num_next.float(), x_cat_hat_oh,
+                    t_next.squeeze().repeat(b), sigma=sigma_num_next.unsqueeze(0).repeat(b,1)
+                )
+                if cfg:
+                    if not is_learnable:
+                        sigma_cond = sigma_num_next
+                    else:
+                        if is_bin_class:
+                            sigma_cond = (0.002 ** (1/7) + t_next * (80 ** (1/7) - 0.002 ** (1/7))).pow(7)
+                        else:
+                            sigma_cond = sigma_num_next[self.num_mask_idx]
+                    y_num_next = x_num_next.float()[:, self.num_mask_idx]
+                    idx = list(chain(*[self.slices_for_classes_with_mask[i] for i in self.cat_mask_idx]))
+                    y_cat_hat = x_cat_hat_oh[:, idx]
+                    y_only_denoised, y_only_raw_logits = self.y_only_model(
+                        y_num_next,
+                        y_cat_hat,
+                        t_next.squeeze().repeat(b), sigma=sigma_cond.unsqueeze(0).repeat(b,1)  # sigma accepts (bs, K_num)
+                    )
+                    denoised[:, self.num_mask_idx] *= 1 + self.w_num
+                    denoised[:, self.num_mask_idx] -= self.w_num*y_only_denoised
+
+                d_prime = (x_num_next - denoised) / sigma_num_next
+                x_num_next = x_num_hat + (sigma_num_next - sigma_num_hat) * (0.5 * d_cur + 0.5 * d_prime)
+
+        return x_num_next, x_cat_next, q_xs
+
+    def sample_guided(self, num_samples, num_constraints=(), cat_constraints=(),
+                      backward_steps=10, backward_lr=1.0, guidance_schedule='none'):
+        """Unconditional EDM/MDLM sampling (copy of self.sample) with per-step
+        constraint guidance. Pure guidance: no known-column blending."""
+        assert self.y_only_model is None, "tabdiff-universal does not support the CFG (y_only_model) path"
+        b = num_samples
+        device = self.device
+        dtype = torch.float32
+
+        # Create the chain of t
+        t = torch.linspace(0,1,self.num_timesteps, dtype=dtype, device=device)      # times = 0.0,...,1.0
+        t = t[:, None]
+
+        # Compute the chains of sigma
+        sigma_num_cur = self.num_schedule.total_noise(t)
+        sigma_cat_cur = self.cat_schedule.total_noise(t)
+        sigma_num_next = torch.zeros_like(sigma_num_cur)
+        sigma_num_next[1:] = sigma_num_cur[0:-1]
+        sigma_cat_next = torch.zeros_like(sigma_cat_cur)
+        sigma_cat_next[1:] = sigma_cat_cur[0:-1]
+
+        # Prepare sigma_hat for stochastic sampling mode
+        if self.sampler_params['stochastic_sampler']:
+            gamma = min(S_churn / self.num_timesteps, np.sqrt(2) - 1) * (S_min <= sigma_num_cur) * (sigma_num_cur <= S_max)
+            sigma_num_hat = sigma_num_cur + gamma * sigma_num_cur
+            t_hat = self.num_schedule.inverse_to_t(sigma_num_hat)
+            t_hat = torch.min(t_hat, dim=-1, keepdim=True).values    # take the samllest t_hat induced by sigma_num
+            zero_gamma = (gamma==0).any()
+            t_hat[zero_gamma] = t[zero_gamma]
+            out_of_bound = (t_hat > 1).squeeze()
+            sigma_num_hat[out_of_bound] = sigma_num_cur[out_of_bound]
+            t_hat[out_of_bound] = t[out_of_bound]
+            sigma_cat_hat = self.cat_schedule.total_noise(t_hat)
+        else:
+            t_hat = t
+            sigma_num_hat = sigma_num_cur
+            sigma_cat_hat = sigma_cat_cur
+
+        # Sample priors for the continuous dimensions
+        z_norm = torch.randn((b, self.num_numerical_features), device=device) * sigma_num_cur[-1]
+
+        # Sample priors for the discrete dimensions
+        has_cat = len(self.num_classes) > 0
+        z_cat = torch.zeros((b, 0), device=device).float()      # the default values for categorical sample if the dataset has no categorical entry
+        if has_cat:
+            z_cat = self._sample_masked_prior(
+                b,
+                len(self.num_classes),
+            )
+
+        pbar = tqdm(reversed(range(0, self.num_timesteps)), total=self.num_timesteps)
+        pbar.set_description("Guided Sampling Progress")
+        for i in pbar:
+            w_t = guidance_weight(guidance_schedule, i, self.num_timesteps)
+            z_norm, z_cat, q_xs = self._edm_update_guided(
+                z_norm, z_cat, i,
+                t[i], t[i-1] if i > 0 else None, t_hat[i],
+                sigma_num_cur[i], sigma_num_next[i], sigma_num_hat[i],
+                sigma_cat_cur[i], sigma_cat_next[i], sigma_cat_hat[i],
+                num_constraints=num_constraints, cat_constraints=cat_constraints,
+                backward_steps=backward_steps, backward_lr=backward_lr, w_t=w_t,
+            )
+
+        assert torch.all(z_cat < self.mask_index)
+        sample = torch.cat([z_norm, z_cat], dim=1).cpu()
+        return sample
 
 
     def sample_impute(
