@@ -296,6 +296,7 @@ def generate_guided(
     num_inference_steps=None,
     num_scale=0.1, cat_scale=4.0, mean_scale=0.1,
     backward_steps=10, backward_lr=1.0, guidance_schedule="none",
+    cat_snap_final=False,
 ):
     """tabdiff-universal: training-free constraint guidance over TabDiff's model.
     Numeric constraints guide the x0 estimate; categorical constraints bias the
@@ -335,7 +336,7 @@ def generate_guided(
                 num_samples,
                 num_constraints=num_constraints, cat_constraints=cat_constraints,
                 backward_steps=backward_steps, backward_lr=backward_lr,
-                guidance_schedule=guidance_schedule,
+                guidance_schedule=guidance_schedule, cat_snap_final=cat_snap_final,
             )
         return custom_decode_synthetic_data(syn_data, info, num_inverse, int_inverse, cat_inverse)
     finally:
@@ -563,6 +564,7 @@ def generate(req: dict, native_constraints: list[str], privacy_mode: str = "none
                 dataname=hashed, constraint_specs=list(native_constraints),
                 num_samples=n_samples, ckpt_path=ckpt_path, device=device,
                 num_inference_steps=num_inference_steps,
+                cat_snap_final=req.get("cat_snap_final", False),
             )
     else:
         # Unconditional only when there is genuinely nothing to condition on.

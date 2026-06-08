@@ -6,7 +6,7 @@ from tabdiff.models.noise_schedule import *
 from tqdm import tqdm
 from itertools import chain
 from tabdiff.guidance import (
-    compute_numeric_delta, apply_categorical_bias, guidance_weight,
+    compute_numeric_delta, apply_categorical_bias, guidance_weight, snap_categorical,
 )
 
 """
@@ -514,7 +514,7 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
             sigma_cat_cur, sigma_cat_next, sigma_cat_hat,
             cat_temperature=1.0,
             num_constraints=(), cat_constraints=(),
-            backward_steps=10, backward_lr=1.0, w_t=1.0,
+            backward_steps=10, backward_lr=1.0, w_t=1.0, snap=False,
         ):
         """Copy of edm_update with two guidance hooks. CFG (y_only_model) path is
         unsupported here: guidance + CFG interaction is untested (spec sec.10)."""
@@ -588,6 +588,8 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
             alpha_t = torch.exp(-sigma_cat_hat).unsqueeze(0).repeat(b,1)
             alpha_s = torch.exp(-sigma_cat_next).unsqueeze(0).repeat(b,1)
             x_cat_next, q_xs = self._mdlm_update(logits, x_cat_hat, alpha_t, alpha_s, temperature=cat_temperature)
+            if snap and cat_constraints:
+                x_cat_next = snap_categorical(x_cat_next, list(cat_constraints))
 
         # Apply 2nd order correction.
         if self.sampler_params['second_order_correction']:
@@ -622,7 +624,8 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
         return x_num_next, x_cat_next, q_xs
 
     def sample_guided(self, num_samples, num_constraints=(), cat_constraints=(),
-                      backward_steps=10, backward_lr=1.0, guidance_schedule='none'):
+                      backward_steps=10, backward_lr=1.0, guidance_schedule='none',
+                      cat_snap_final=False):
         """Unconditional EDM/MDLM sampling (copy of self.sample) with per-step
         constraint guidance. Pure guidance: no known-column blending."""
         assert self.y_only_model is None, "tabdiff-universal does not support the CFG (y_only_model) path"
@@ -675,13 +678,14 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
         pbar.set_description("Guided Sampling Progress")
         for i in pbar:
             w_t = guidance_weight(guidance_schedule, i, self.num_timesteps)
+            snap = cat_snap_final and (i == 0)
             z_norm, z_cat, q_xs = self._edm_update_guided(
                 z_norm, z_cat, i,
                 t[i], t[i-1] if i > 0 else None, t_hat[i],
                 sigma_num_cur[i], sigma_num_next[i], sigma_num_hat[i],
                 sigma_cat_cur[i], sigma_cat_next[i], sigma_cat_hat[i],
                 num_constraints=num_constraints, cat_constraints=cat_constraints,
-                backward_steps=backward_steps, backward_lr=backward_lr, w_t=w_t,
+                backward_steps=backward_steps, backward_lr=backward_lr, w_t=w_t, snap=snap,
             )
 
         assert torch.all(z_cat < self.mask_index)

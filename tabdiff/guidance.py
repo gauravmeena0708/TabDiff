@@ -256,3 +256,15 @@ def parse_constraint_spec(spec, info, X_num_train, num_transform, int_transform,
     if op == '!=':
         return NotEqual(num_idx, target, margin=not_equal_margin, scale=scale)
     raise ValueError(f"Unhandled operator {op!r}")
+
+
+def snap_categorical(x_cat, cat_constraints):
+    """Hard-set equality-constrained categorical columns to their target class.
+    Returns a modified clone; not-equal constraints (sign=-1) are left alone."""
+    if not cat_constraints:
+        return x_cat
+    out = x_cat.clone()
+    for c in cat_constraints:
+        if c.sign == 1:
+            out[:, c.col_pos] = c.class_idx
+    return out

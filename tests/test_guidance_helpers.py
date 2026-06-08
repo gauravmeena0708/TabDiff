@@ -39,3 +39,15 @@ def test_guidance_weight_modes():
     assert guidance_weight('none', i=5, num_timesteps=10) == 1.0
     assert guidance_weight('linear', i=0, num_timesteps=10) == 1.0   # cleanest step
     assert guidance_weight('linear', i=9, num_timesteps=10) == 0.0   # noisiest step
+
+
+from tabdiff.guidance import snap_categorical
+
+
+def test_snap_categorical_sets_equality_targets_only():
+    x_cat = torch.zeros(3, 2, dtype=torch.long)
+    eq = CategoricalConstraint(col_pos=0, class_idx=2, scale=4.0, sign=1)
+    ne = CategoricalConstraint(col_pos=1, class_idx=1, scale=4.0, sign=-1)
+    out = snap_categorical(x_cat, [eq, ne])
+    assert torch.all(out[:, 0] == 2)   # equality snapped
+    assert torch.all(out[:, 1] == 0)   # not-equal column untouched
