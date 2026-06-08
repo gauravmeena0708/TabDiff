@@ -287,6 +287,61 @@ def generate_unconditional(dataname="adult", num_samples=100, ckpt_path=None,
         os.chdir(original_cwd)
 
 
+def generate_guided(
+    dataname="adult",
+    constraint_specs=None,   # list of native dialect strings, e.g. ["age>30", "education=Bachelors"]
+    num_samples=100,
+    ckpt_path=None,
+    device="cuda",
+    num_inference_steps=None,
+    num_scale=0.1, cat_scale=4.0, mean_scale=0.1,
+    backward_steps=10, backward_lr=1.0, guidance_schedule="none",
+):
+    """tabdiff-universal: training-free constraint guidance over TabDiff's model.
+    Numeric constraints guide the x0 estimate; categorical constraints bias the
+    unmasking logits. Falls back to nothing-to-guide → unconditional handled by caller."""
+    from tabdiff.guidance import (
+        NumericConstraint, CategoricalConstraint, parse_constraint_spec,
+    )
+
+    original_cwd = os.getcwd()
+    os.chdir(TABDIFF_DIR)
+    try:
+        from generate_conditional import load_model_and_info
+
+        device = _resolve_device(device)
+        (
+            diffusion, info, X_num_train, _Xc, _dn, _cats,
+            num_inverse, int_inverse, cat_inverse, num_transform, int_transform,
+        ) = load_model_and_info(dataname, ckpt_path=ckpt_path, device=device)
+
+        if num_inference_steps is not None:
+            diffusion.num_timesteps = num_inference_steps
+
+        parsed = [
+            parse_constraint_spec(
+                s, info, X_num_train, num_transform, int_transform,
+                num_scale=num_scale, cat_scale=cat_scale, mean_scale=mean_scale,
+            )
+            for s in (constraint_specs or [])
+        ]
+        num_constraints = [c for c in parsed if isinstance(c, NumericConstraint)]
+        cat_constraints = [c for c in parsed if isinstance(c, CategoricalConstraint)]
+        logger.info("Guided generation: %d numeric, %d categorical constraints",
+                    len(num_constraints), len(cat_constraints))
+
+        with torch.no_grad():
+            syn_data = diffusion.sample_guided(
+                num_samples,
+                num_constraints=num_constraints, cat_constraints=cat_constraints,
+                backward_steps=backward_steps, backward_lr=backward_lr,
+                guidance_schedule=guidance_schedule,
+            )
+        return custom_decode_synthetic_data(syn_data, info, num_inverse, int_inverse, cat_inverse)
+    finally:
+        os.chdir(original_cwd)
+
+
 # --- checkpoint discovery / training (ported) -------------------------------
 
 def _tabdiff_checkpoint_dirs(dataname):
@@ -497,20 +552,32 @@ def generate(req: dict, native_constraints: list[str], privacy_mode: str = "none
             k, v = raw.split("=", 1)
             constraints.append((k.strip(), v.strip()))
 
-    # Unconditional only when there is genuinely nothing to condition on.
-    use_unconditional = (privacy_mode == "none" and not constraints)
-
-    if use_unconditional:
-        df = generate_unconditional(dataname=hashed, num_samples=n_samples,
-                                    ckpt_path=ckpt_path, device=device,
-                                    num_inference_steps=num_inference_steps)
+    # tabdiff-universal: full native dialect via guidance.
+    if privacy_mode == "universal":
+        if not native_constraints:
+            df = generate_unconditional(dataname=hashed, num_samples=n_samples,
+                                        ckpt_path=ckpt_path, device=device,
+                                        num_inference_steps=num_inference_steps)
+        else:
+            df = generate_guided(
+                dataname=hashed, constraint_specs=list(native_constraints),
+                num_samples=n_samples, ckpt_path=ckpt_path, device=device,
+                num_inference_steps=num_inference_steps,
+            )
     else:
-        df = generate_multi_conditional(
-            dataname=hashed, constraints=constraints, num_samples=n_samples,
-            s_churn=s_churn, privacy_noise_scale=privacy_noise_scale,
-            cat_noise_scale=cat_noise_scale, impute_condition="x_t",
-            ckpt_path=ckpt_path, device=device, num_inference_steps=num_inference_steps,
-        )
+        # Unconditional only when there is genuinely nothing to condition on.
+        use_unconditional = (privacy_mode == "none" and not constraints)
+        if use_unconditional:
+            df = generate_unconditional(dataname=hashed, num_samples=n_samples,
+                                        ckpt_path=ckpt_path, device=device,
+                                        num_inference_steps=num_inference_steps)
+        else:
+            df = generate_multi_conditional(
+                dataname=hashed, constraints=constraints, num_samples=n_samples,
+                s_churn=s_churn, privacy_noise_scale=privacy_noise_scale,
+                cat_noise_scale=cat_noise_scale, impute_condition="x_t",
+                ckpt_path=ckpt_path, device=device, num_inference_steps=num_inference_steps,
+            )
 
     # Reconcile column names/order against the training schema recorded at train.
     actual_cols = meta.get("columns") or list(df.columns)
