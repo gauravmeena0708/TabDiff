@@ -135,3 +135,124 @@ def guidance_weight(schedule, i, num_timesteps):
         denom = max(num_timesteps - 1, 1)
         return float((denom - i) / denom)
     raise ValueError(f"Unknown guidance schedule: {schedule!r}")
+
+
+import numpy as np
+
+_OPERATORS = [('>=', '>='), ('<=', '<='), ('!=', '!='), ('>', '>'), ('<', '<'), ('=', '=')]
+
+
+def _split_constraint(spec):
+    """Split 'col=val' / 'col>=val' into (col, op, val). Leftmost operator wins,
+    ties broken toward the longer token ('>=' over '>'). Ported verbatim from
+    diffutabgen universal_guider._split_constraint."""
+    best_idx = len(spec)
+    best_token = None
+    best_op = None
+    for token, op in _OPERATORS:
+        idx = spec.find(token)
+        if idx != -1 and (idx < best_idx or (idx == best_idx and len(token) > len(best_token))):
+            best_idx = idx
+            best_token = token
+            best_op = op
+    if best_token:
+        col, val = spec.split(best_token, 1)
+        return col, best_op, val
+    raise ValueError(f"Unknown operator in constraint: {spec}")
+
+
+def _cat_col_pos(info, col_idx):
+    """Categorical position in num_classes order (mirrors _engine.generate_multi_conditional)."""
+    if col_idx in info["cat_col_idx"]:
+        pos = info["cat_col_idx"].index(col_idx)
+        if info["task_type"] != "regression":
+            pos += 1
+        return pos
+    if col_idx in info.get("target_col_idx", []):
+        return 0
+    raise ValueError(f"Column index {col_idx} is not categorical or target")
+
+
+def _class_index(classes, value):
+    classes_str = [str(c).strip() for c in classes]
+    v = str(value).strip()
+    if v not in classes_str:
+        raise ValueError(f"Value {value!r} is not a known class. Known: {classes_str}")
+    return classes_str.index(v)
+
+
+def _normalize_numeric(info, X_num_train, num_idx, raw_value, num_transform, int_transform):
+    """Normalize a raw numeric target into denoised space, the same way
+    _engine.generate_multi_conditional does (mean row → int → num transform)."""
+    base_row = X_num_train.mean(axis=0).astype(np.float32)
+    row = base_row.copy()
+    row[num_idx] = float(raw_value)
+    row = row.reshape(1, -1)
+    if int_transform is not None:
+        row = int_transform.transform(row)
+    if num_transform is not None:
+        row = num_transform.transform(row)
+    return float(row[0, num_idx])
+
+
+def parse_constraint_spec(spec, info, X_num_train, num_transform, int_transform,
+                          num_scale=0.1, cat_scale=4.0, mean_scale=0.1,
+                          not_equal_margin=0.1, fraction_tau=0.1):
+    """Parse one constraint spec into a NumericConstraint or CategoricalConstraint."""
+    # @scale=N suffix
+    per_spec_scale = None
+    if '@scale=' in spec:
+        spec, scale_str = spec.rsplit('@scale=', 1)
+        per_spec_scale = float(scale_str.strip())
+
+    # ~p fraction suffix (numeric inequalities only)
+    frac_target = None
+    if '~' in spec:
+        spec, frac_str = spec.rsplit('~', 1)
+        frac_target = float(frac_str.strip())
+
+    col, op, val = _split_constraint(spec)
+    col = col.strip()
+
+    is_mean = False
+    if col.startswith('mean(') and col.endswith(')'):
+        col = col[5:-1]
+        is_mean = True
+
+    if col not in info["column_names"]:
+        raise ValueError(f"Column {col!r} not found. Known: {info['column_names']}")
+    col_idx = info["column_names"].index(col)
+    is_numeric = col_idx in info["num_col_idx"]
+
+    if not is_numeric:
+        if is_mean:
+            raise ValueError(f"mean({col}) is only valid for numeric columns")
+        if op not in ('=', '!='):
+            raise ValueError(f"Operator {op!r} is not valid on categorical column {col!r}")
+        col_pos = _cat_col_pos(info, col_idx)
+        class_idx = _class_index(info["cat_encoders"][col], val)
+        scale = per_spec_scale if per_spec_scale is not None else cat_scale
+        sign = 1 if op == '=' else -1
+        return CategoricalConstraint(col_pos, class_idx, scale=scale, sign=sign)
+
+    # numeric
+    num_idx = info["num_col_idx"].index(col_idx)
+    target = _normalize_numeric(info, X_num_train, num_idx, val, num_transform, int_transform)
+    scale = per_spec_scale if per_spec_scale is not None else (mean_scale if is_mean else num_scale)
+
+    if is_mean:
+        return Mean(num_idx, target, scale=scale)
+    if frac_target is not None:
+        if op not in ('>', '>=', '<', '<='):
+            raise ValueError("~fraction targets are only valid on inequalities")
+        direction = 'greater' if op in ('>', '>=') else 'less'
+        return Fraction(num_idx, target, frac_target, direction=direction, tau=fraction_tau, scale=scale)
+    if op == '=':
+        return Equality(num_idx, target, scale=scale)
+    if op in ('>', '>='):
+        return GreaterThan(num_idx, target, scale=scale)
+    if op in ('<', '<='):
+        return LessThan(num_idx, target, scale=scale)
+    if op == '!=':
+        return NotEqual(num_idx, target, margin=not_equal_margin, scale=scale)
+    raise ValueError(f"Unhandled operator {op!r}")
