@@ -84,3 +84,54 @@ class CategoricalConstraint:
         self.class_idx = int(class_idx)
         self.scale = float(scale)
         self.sign = int(sign)
+
+
+def compute_numeric_delta(denoised, num_constraints, m, lr):
+    """m steps of plain gradient descent on Δ (init 0) minimizing
+    Σ c.scale · c.loss(denoised + Δ). Returns Δ detached, same shape as denoised.
+
+    Operates on TabDiff's native x0 estimate (`denoised`); the constraint then
+    propagates through the unchanged EDM Euler step. Returns zeros when there is
+    nothing to optimize or the gradient is non-finite.
+    """
+    if not num_constraints or m <= 0:
+        return torch.zeros_like(denoised)
+
+    base = denoised.detach()
+    delta = torch.zeros_like(base)
+    with torch.enable_grad():
+        for _ in range(m):
+            d = delta.detach().requires_grad_(True)
+            total = 0
+            for c in num_constraints:
+                total = total + c.scale * c.loss(base + d)
+            grad = torch.autograd.grad(total, d, allow_unused=True)[0]
+            if grad is None:
+                break
+            if torch.isnan(grad).any() or torch.isinf(grad).any():
+                return torch.zeros_like(base)
+            delta = (d - lr * grad).detach()
+    return delta
+
+
+def apply_categorical_bias(logits, cat_constraints, w_t):
+    """Add ±scale·w_t to logits[:, col_pos, class_idx] for each categorical
+    constraint. logits shape is (bs, K, K_max) from _subs_parameterization.
+    Returns a modified clone (does not mutate the input)."""
+    if not cat_constraints:
+        return logits
+    out = logits.clone()
+    for c in cat_constraints:
+        out[:, c.col_pos, c.class_idx] = out[:, c.col_pos, c.class_idx] + c.sign * c.scale * w_t
+    return out
+
+
+def guidance_weight(schedule, i, num_timesteps):
+    """Strength weight across the reverse loop. i runs T-1 (noisy) → 0 (clean).
+    'none' is uniform; 'linear' ramps to full strength at the clean end."""
+    if schedule == 'none':
+        return 1.0
+    if schedule == 'linear':
+        denom = max(num_timesteps - 1, 1)
+        return float((denom - i) / denom)
+    raise ValueError(f"Unknown guidance schedule: {schedule!r}")
