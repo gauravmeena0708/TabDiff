@@ -9,6 +9,7 @@
   },
   "methods": {
     "tabdiff": { "variant": "none" },
+    "tabdiff-universal": { "variant": "universal", "enabled": true },
     "tabdiff-stochastic": { "variant": "stochastic" },
     "tabdiff-midpoint": { "variant": "midpoint" }
   }

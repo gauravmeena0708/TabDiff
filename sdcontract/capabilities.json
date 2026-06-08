@@ -29,5 +29,15 @@
     "supports_multi_constraint": true,
     "max_constraints": null,
     "requires_gpu": true
+  },
+  "tabdiff-universal": {
+    "kinds": ["row", "aggregate"],
+    "ops": ["eq", "ne", "gt", "ge", "lt", "le"],
+    "aggs": ["mean"],
+    "column_types": ["numerical", "categorical"],
+    "supports_unconditional": true,
+    "supports_multi_constraint": true,
+    "max_constraints": null,
+    "requires_gpu": true
   }
 }

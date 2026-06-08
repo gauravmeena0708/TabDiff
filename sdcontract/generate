@@ -26,11 +26,15 @@ def main() -> int:
         from sdcontract_core.constraints import parse, to_spec
         import _engine
 
-        # Round-trip the shared dialect into TabDiff's native col=val form;
-        # raises on a non-ROW/eq constraint (this method is equality-only).
-        native = [to_spec(parse(s), "equality") for s in req.get("constraints", [])]
-        privacy_mode = req.get("variant") or "none"
-        out_path = _engine.generate(req, native, privacy_mode)
+        raw = req.get("constraints", [])
+        variant = req.get("variant") or "none"
+        # Universal variant consumes the shared dialect raw (>, mean(...), ~p, !=);
+        # all other variants are equality-only (col=val).
+        if variant == "universal":
+            native = list(raw)
+        else:
+            native = [to_spec(parse(s), "equality") for s in raw]
+        out_path = _engine.generate(req, native, variant)
         result = {"ok": True, "output_csv": str(out_path), "message": ""}
     except Exception as exc:
         result = {"ok": False, "output_csv": None, "message": f"{type(exc).__name__}: {exc}"}
